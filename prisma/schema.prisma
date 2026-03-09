@@ -5,10 +5,46 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
+  provider        = "prisma-client-js"
+  previewFeatures = ["fullTextSearchPostgres", "driverAdapters"]
 }
 
 datasource db {
   provider = "postgresql"
+}
+
+model User {
+  id          String     @id @default(uuid())
+  firstName   String
+  secondName  String
+  username    String?    @unique
+  email       String     @unique
+  phoneNumber String     @unique
+  password    String?
+  status      UserStatus @default(ACTIVE)
+
+  passwordChangedAt           DateTime?
+  passwordResetCode           String?   @unique
+  passwordResetLastSent       DateTime?
+  passwordResetAttempts       Int       @default(0)
+  passwordResetAttemptResetAt DateTime?
+  passwordResetExpires        DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  deActivatedAt DateTime?
+  activatedAt   DateTime?
+
+  @@index([email])
+  @@index([status])
+  @@index([username])
+  @@index([phoneNumber])
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+  DEACTIVATED
 }
