@@ -1,19 +1,14 @@
 import {
   IsEmail,
   IsNotEmpty,
-  IsOptional,
   IsPhoneNumber,
   IsString,
   Matches,
   MaxLength,
   MinLength,
-  IsEnum,
-  IsArray,
-  ArrayNotEmpty,
   registerDecorator,
   ValidationOptions,
   ValidationArguments,
-  IsBoolean,
 } from 'class-validator';
 
 import { Transform } from 'class-transformer';
@@ -60,10 +55,6 @@ export class RegisterUserDto {
   @IsNotEmpty({ message: 'Confirm password is required' })
   @Match('password', { message: 'Confirm password must match password' })
   confirmPassword: string;
-
-  @IsNotEmpty()
-  @IsBoolean()
-  terms: boolean;
 }
 
 export function Match(property: string, validationOptions?: ValidationOptions) {

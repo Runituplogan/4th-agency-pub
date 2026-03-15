@@ -10,15 +10,19 @@ import { Reflector } from '@nestjs/core';
 import { Request } from 'express';
 import { UserStatus } from '@prisma/client';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
-import prisma from 'src/modules/shared/service/client';
-import { changedPasswordAfter } from 'src/modules/shared/utils/passwordUtil';
+import { JwtPayload } from 'jsonwebtoken';
+import { ConfigService } from '@nestjs/config';
+import prisma from 'src/shared/service/client';
+import { changedPasswordAfter } from 'src/shared/utils/passwordUtil';
+
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  private logger = new Logger(JwtAuthGuard.name);
+  private readonly logger = new Logger(JwtAuthGuard.name);
 
   constructor(
-    private jwtService: JwtService,
-    private reflector: Reflector,
+    private readonly jwtService: JwtService,
+    private readonly reflector: Reflector,
+    private readonly configService: ConfigService,
   ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
@@ -27,9 +31,7 @@ export class JwtAuthGuard implements CanActivate {
       context.getClass(),
     ]);
 
-    if (isPublic) {
-      return true;
-    }
+    if (isPublic) return true;
 
     const request = context.switchToHttp().getRequest();
     const token = this.extractJwtFromRequest(request);
@@ -37,66 +39,88 @@ export class JwtAuthGuard implements CanActivate {
     if (!token) {
       this.logger.warn('No token provided in request');
       throw new UnauthorizedException(
-        'Oops! We couldn’t find your access token. Please log in to continue.',
+        'Access token not found. Please log in to continue.',
       );
     }
-    let decodedToken;
+
+    let decodedToken: JwtPayload;
+
     try {
       decodedToken = await this.jwtService.verifyAsync(token, {
-        secret: process.env.JWT_SECRET,
+        secret: this.configService.getOrThrow('JWT_SECRET'),
       });
     } catch (error) {
-      this.logger.warn('Token verification failed', error.message);
+      this.logger.warn(`Token verification failed: ${error.message}`);
       throw new UnauthorizedException(
-        'Hmm... that token doesn’t look right. Please log in again to continue.',
+        'Invalid or expired token. Please log in again.',
       );
     }
 
     const user = await prisma.user.findUnique({
       where: { id: decodedToken.sub },
+      select: {
+        id: true,
+        firstName: true,
+        secondName: true,
+        email: true,
+        phoneNumber: true,
+        status: true,
+        verified: true,
+        signUpMode: true,
+        passwordChangedAt: true,
+        createdAt: true,
+        updatedAt: true,
+      },
     });
+
     if (!user) {
-      this.logger.warn(`User with id ${decodedToken.sub} not found`);
-      throw new UnauthorizedException('Access denied: User not found');
+      this.logger.warn(`Token valid but user ${decodedToken.sub} not found`);
+      throw new UnauthorizedException('Access denied.');
     }
 
     if (user.status === UserStatus.DEACTIVATED) {
       this.logger.warn(`Access attempt by deactivated user: ${user.id}`);
       throw new UnauthorizedException(
-        'Access denied: Your account has been deactivated. Please contact support if you believe this is an error.',
+        'Your account has been deactivated. Please contact support.',
       );
     }
 
-    if (
-      user.deActivatedAt &&
-      user.deActivatedAt.getTime() > decodedToken.iat * 1000
-    ) {
+    if (user.status === UserStatus.SUSPENDED) {
+      this.logger.warn(`Access attempt by suspended user: ${user.id}`);
       throw new UnauthorizedException(
-        'Access denied: Account was deactivated after this session began.',
+        'Your account has been suspended. Please contact support.',
       );
+    }
+
+    if (user.status === UserStatus.DELETED) {
+      this.logger.warn(`Access attempt by deleted user: ${user.id}`);
+      throw new UnauthorizedException('Access denied.');
     }
 
     if (
       user.passwordChangedAt &&
       changedPasswordAfter(user.passwordChangedAt, decodedToken.iat ?? 0)
     ) {
+      this.logger.warn(
+        `Password changed after token issued for user ${user.id}`,
+      );
       throw new UnauthorizedException(
-        'Access denied: Password changed recently, please log in again.',
+        'Password was recently changed. Please log in again.',
       );
     }
-    //attach user to request object for middlewares/controllers to use it
+
     request.user = user;
 
     return true;
   }
 
   private extractJwtFromRequest(request: Request): string | null {
-    if (
-      request.headers.authorization &&
-      request.headers.authorization.startsWith('Bearer ')
-    ) {
-      return request.headers.authorization.split(' ')[1];
+    const authHeader = request.headers.authorization;
+
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      return authHeader.split(' ')[1];
     }
+
     return null;
   }
 }

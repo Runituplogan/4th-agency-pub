@@ -1,15 +1,4 @@
-import { UserStatus } from '@prisma/client';
-
-// export enum UserStatus {
-//   ACTIVE = 'ACTIVE',
-//   SUSPENDED = 'SUSPENDED',
-//   DELETED = 'DELETED',
-// }
-
-// export enum SignupMode {
-//   OAUTH = 'OAUTH',
-//   REGULAR = 'REGULAR',
-// }
+import { SignupMode, UserStatus } from '@prisma/client';
 
 export interface User {
   id: string;
@@ -33,21 +22,33 @@ export interface LoginResponseDto {
     secondName: string;
     email: string;
     phoneNumber: string;
-    passwordChangedAt: Date | null;
     status: UserStatus;
+    googleId: string | null;
+    verified: boolean;
+    signUpMode: SignupMode | null;
     createdAt: Date;
     updatedAt: Date;
   };
   accessToken: string;
+  refreshToken: string;
 }
 
 export class RegisterResponseDto {
-  id: string;
-  firstName: string;
-  secondName: string;
-  email: string;
-  phoneNumber: string;
-  status: UserStatus;
-  createdAt: Date;
-  updatedAt: Date;
+  user: {
+    id: string;
+    firstName: string;
+    secondName: string;
+    email: string;
+    phoneNumber: string;
+    status: UserStatus;
+    signUpMode: SignupMode;
+    verified: boolean;
+    googleId?: string;
+    profileImage?: string;
+    emailVerificationCode?: string;
+    emailCodeExpires?: Date;
+    createdAt: Date;
+    updatedAt: Date;
+  };
+  accessToken: string;
 }

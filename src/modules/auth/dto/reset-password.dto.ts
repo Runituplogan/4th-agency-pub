@@ -25,9 +25,9 @@ class MatchPasswords implements ValidatorConstraintInterface {
 }
 
 export class ResetPasswordDto {
-  @IsNotEmpty({ message: 'code is required' })
+  @IsNotEmpty({ message: 'Reset token is required' })
   @IsString()
-  code: string;
+  resetToken: string;
 
   @IsNotEmpty({ message: 'Password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
@@ -39,7 +39,7 @@ export class ResetPasswordDto {
         'Password must contain at least one uppercase letter, one lowercase letter, one number, and one special character',
     },
   )
-  password: string;
+  newPassword: string;
 
   @IsNotEmpty({ message: 'Please confirm your new password' })
   @IsString()

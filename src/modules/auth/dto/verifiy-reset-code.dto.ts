@@ -10,7 +10,7 @@ import {
 export class VerifyResetCodeDto {
   @IsString()
   @IsNotEmpty()
-  identifier: string;
+  email: string;
 
   @IsString()
   @IsNotEmpty({ message: 'Verification code is required' })

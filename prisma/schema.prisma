@@ -14,24 +14,35 @@ datasource db {
 }
 
 model User {
-  id          String     @id @default(uuid())
-  firstName   String
-  secondName  String
-  username    String?    @unique
-  email       String     @unique
-  phoneNumber String     @unique
-  password    String?
-  status      UserStatus @default(ACTIVE)
+  id           String     @id @default(uuid())
+  firstName    String
+  secondName   String
+  username     String?    @unique
+  email        String     @unique
+  phoneNumber  String     @unique
+  password     String?
+  status       UserStatus @default(ACTIVE)
+  verified     Boolean    @default(false)
+  googleId     String?
+  profileImage String?
 
   passwordChangedAt           DateTime?
-  passwordResetCode           String?   @unique
+  passwordResetCode           String?     @unique
   passwordResetLastSent       DateTime?
-  passwordResetAttempts       Int       @default(0)
+  passwordResetAttempts       Int         @default(0)
   passwordResetAttemptResetAt DateTime?
   passwordResetExpires        DateTime?
+  emailVerificationCode       String?     @unique
+  emailCodeExpires            DateTime?
+  signUpMode                  SignupMode?
+  refreshToken                String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  carts    Cart[]
+  orders   Order[]
+  payments Payment[]
 
   deActivatedAt DateTime?
   activatedAt   DateTime?
@@ -47,4 +58,162 @@ enum UserStatus {
   SUSPENDED
   DELETED
   DEACTIVATED
+}
+
+enum SignupMode {
+  OAUTH
+  REGULAR
+}
+
+model Cart {
+  id     String     @id @default(uuid())
+  userId String     @unique
+  status CartStatus @default(ACTIVE)
+  user   User       @relation(fields: [userId], references: [id])
+  items  CartItem[]
+  order  Order?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+}
+
+model CartItem {
+  id     String @id @default(uuid())
+  cartId String
+  cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
+
+  placementId String
+  productId   String
+
+  name       String
+  websiteUrl String
+  logoUrl    String?
+  country    String?
+  type       String
+
+  domainAuthority Int?
+  domainRanking   Int?
+  isDoFollow      Boolean @default(false)
+
+  unitAmount  Float
+  pricingTier String
+  currency    String @default("USD")
+  quantity    Int    @default(1)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([cartId])
+  @@index([placementId])
+}
+
+enum CartStatus {
+  ACTIVE
+  CHECKED_OUT
+  ABANDONED
+}
+
+model Order {
+  id     String      @id @default(uuid())
+  userId String
+  cartId String      @unique
+  user   User        @relation(fields: [userId], references: [id])
+  cart   Cart        @relation(fields: [cartId], references: [id])
+  status OrderStatus @default(PENDING)
+
+  stripePaymentIntentId String  @unique
+  stripeChargeId        String?
+
+  subtotal      Float
+  processingFee Float
+  amountTotal   Float
+  currency      String @default("USD")
+
+  items OrderItem[]
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  payments Payment[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([stripePaymentIntentId])
+}
+
+model OrderItem {
+  id      String @id @default(uuid())
+  orderId String
+  order   Order  @relation(fields: [orderId], references: [id])
+
+  placementId     String
+  productId       String
+  name            String
+  websiteUrl      String
+  logoUrl         String?
+  country         String?
+  type            String
+  domainAuthority Int?
+  domainRanking   Int?
+  isDoFollow      Boolean @default(false)
+  unitAmount      Float
+  pricingTier     String
+  currency        String  @default("USD")
+  quantity        Int
+
+  createdAt DateTime @default(now())
+
+  @@index([orderId])
+}
+
+enum OrderStatus {
+  PENDING
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Payment {
+  id      String  @id @default(uuid())
+  orderId String?
+  order   Order?  @relation(fields: [orderId], references: [id])
+  userId  String
+  user    User    @relation(fields: [userId], references: [id])
+
+  stripePaymentIntentId String  @unique
+  stripeChargeId        String?
+  stripeCustomerId      String?
+
+  amount        Float
+  currency      String        @default("USD")
+  status        PaymentStatus
+  paymentMethod String?
+  last4         String?
+  cardBrand     String?
+
+  stripeEvent Json?
+
+  failureCode    String?
+  failureMessage String?
+
+  paidAt    DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([stripePaymentIntentId])
+  @@index([status])
+}
+
+enum PaymentStatus {
+  PENDING
+  SUCCEEDED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+  DISPUTED
 }
