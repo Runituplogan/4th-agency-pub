@@ -57,23 +57,74 @@ export class TemplateService {
 
   async getEmailVerificationTemplate(data: {
     firstName: string;
-    verificationCode: string;
+    verificationLink: string;
     year: string;
+    expiration_time: Date | null;
     appName?: string;
     supportEmail?: string;
   }): Promise<string> {
     const templateData = {
       FIRST_NAME: data.firstName,
-      VERIFICATION_CODE: data.verificationCode,
+      VERIFICATION_LINK: data.verificationLink,
       YEAR: data.year,
+      EXPIRATION_TIME: data.expiration_time
+        ? data.expiration_time.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'N/A',
       APP_NAME: '4E AGENCY',
       SUPPORT_EMAIL:
-        data.supportEmail ||
-        this.configService.get('SUPPORT_EMAIL') ||
+        data.supportEmail ??
+        this.configService.get('SUPPORT_EMAIL') ??
         'support@example.com',
     };
 
     return this.getEmailTemplate('email-verification', templateData);
+  }
+
+  async orderConfirmedTemplate(data: {
+    firstName: string;
+    orderId: string;
+    orderDate: string;
+    orderTotal: string;
+    orderItems: string;
+    uploadLink?: string;
+    acceptedFormats?: string;
+    maxFileSize?: string;
+    companyWebsite?: string;
+    year: string;
+    appName?: string;
+    supportEmail?: string;
+  }): Promise<string> {
+    const templateData = {
+      CUSTOMER_NAME: data.firstName,
+      ORDER_ID: data.orderId,
+      ORDER_DATE: data.orderDate,
+      ORDER_TOTAL: data.orderTotal,
+      ORDER_ITEMS: data.orderItems,
+      COMPANY_WEBSITE:
+        data.companyWebsite ?? this.configService.get('COMPANY_WEBSITE') ?? '',
+      UPLOAD_LINK:
+        data.uploadLink ?? this.configService.get('ACCEPTED_FORMATS') ?? '',
+      ACCEPTED_FORMATS:
+        data.acceptedFormats ??
+        this.configService.get('ACCEPTED_FORMATS') ??
+        '',
+      MAX_FILE_SIZE:
+        data.maxFileSize ?? this.configService.get('MAX_FILE_SIZE') ?? '',
+      YEAR: data.year,
+      APP_NAME: '4E AGENCY',
+      SUPPORT_EMAIL:
+        data.supportEmail ??
+        this.configService.get('SUPPORT_EMAIL') ??
+        'support@example.com',
+    };
+
+    return this.getEmailTemplate('order-placed-success', templateData);
   }
 
   async getPasswordResetTemplate(data: {

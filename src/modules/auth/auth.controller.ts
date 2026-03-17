@@ -6,6 +6,7 @@ import {
   HttpStatus,
   Patch,
   Post,
+  Query,
   Req,
   Res,
   UseGuards,
@@ -22,8 +23,8 @@ import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyResetCodeDto } from './dto/verifiy-reset-code.dto';
 import { LoginResponseDto } from './interfaces/user-login.interface';
 import { VerifyAccountDto } from './dto/verifiy-account.dto';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 import { ConfigService } from '@nestjs/config';
+import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 
 @Controller('auth')
 export class AuthController {
@@ -83,18 +84,14 @@ export class AuthController {
   }
 
   @Public()
-  @Post('verify-account')
-  @HttpCode(HttpStatus.OK)
-  async verifyAccount(
-    @Body() verifyAccountDto: VerifyAccountDto,
-    @Res({ passthrough: true }) res: Response,
+  @Get('verify-email')
+  async verifyEmail(
+    @Query('token') token: string,
+    @Query('userId') userId: string,
+    @Res() res: Response,
   ) {
-    const result = await this.authService.verifyAccount(verifyAccountDto);
-
-    this.setRefreshTokenCookie(res, result.refreshToken);
-
-    res.locals.message = 'Email verified successfully! Account is now active.';
-    return { data: result };
+    await this.authService.verifyEmail(token, userId);
+    return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
   }
 
   @Public()

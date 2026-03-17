@@ -32,8 +32,8 @@ model User {
   passwordResetAttempts       Int         @default(0)
   passwordResetAttemptResetAt DateTime?
   passwordResetExpires        DateTime?
-  emailVerificationCode       String?     @unique
-  emailCodeExpires            DateTime?
+  emailVerificationToken      String?     @unique
+  emailTokenExpires           DateTime?
   signUpMode                  SignupMode?
   refreshToken                String?
 
@@ -186,6 +186,7 @@ model Payment {
   stripePaymentIntentId String  @unique
   stripeChargeId        String?
   stripeCustomerId      String?
+  stripeClientSecret    String?
 
   amount        Float
   currency      String        @default("USD")
@@ -202,6 +203,7 @@ model Payment {
   paidAt    DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
 
   @@index([orderId])
   @@index([userId])

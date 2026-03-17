@@ -1,6 +1,4 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { CreateCheckoutDto } from './dto/create-checkout.dto';
-import { UpdateCheckoutDto } from './dto/update-checkout.dto';
 import {
   BadRequestException,
   InternalServerErrorException,
@@ -10,12 +8,13 @@ import prisma from 'src/shared/service/client';
 import { CartStatus, PaymentStatus } from '@prisma/client';
 import Stripe from 'stripe';
 import { ConfigService } from '@nestjs/config';
+import { CheckoutSessionResponseDto } from './interface';
 
 @Injectable()
 export class CheckoutService {
   private readonly logger = new Logger(CheckoutService.name);
   private readonly stripe: Stripe;
-  private readonly processingFeePercent = 0.03; // 3%
+  private readonly processingFeePercent = 0.03;
 
   constructor(private readonly configService: ConfigService) {
     this.stripe = new Stripe(
@@ -26,14 +25,8 @@ export class CheckoutService {
     );
   }
 
-  async createCheckoutSession(userId: string): Promise<{
-    // clientSecret: string;
-    paymentIntentId: string;
-    amountTotal: number;
-    currency: string;
-  }> {
+  async createCheckoutSession(userId: string): Promise<{ url: string | null }> {
     try {
-      // Fetch cart with items
       const cart = await prisma.cart.findUnique({
         where: { userId },
         include: { items: true },
@@ -48,10 +41,11 @@ export class CheckoutService {
       }
 
       if (cart.items.length === 0) {
-        throw new BadRequestException('Cart is empty');
+        throw new BadRequestException('Your cart is empty');
       }
 
-      // Compute totals — same logic as getCartWithTotals
+      const frontendUrl = this.configService.getOrThrow('FRONTEND_URL');
+
       const subtotal = cart.items.reduce(
         (sum, item) => sum + item.unitAmount * item.quantity,
         0,
@@ -60,15 +54,48 @@ export class CheckoutService {
         (subtotal * this.processingFeePercent).toFixed(2),
       );
       const amountTotal = parseFloat((subtotal + processingFee).toFixed(2));
-
-      // Stripe expects amount in smallest currency unit (cents)
-      const amountInCents = Math.round(amountTotal * 100);
       const currency = cart.items[0].currency.toLowerCase();
 
-      // Create Stripe Payment Intent
-      const paymentIntent = await this.stripe.paymentIntents.create({
-        amount: amountInCents,
-        currency,
+      const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
+        ...cart.items.map((item) => ({
+          price_data: {
+            currency,
+            product_data: {
+              name: item.name,
+              description:
+                `${item.type} • ${item.websiteUrl} • ${item.country ?? ''}`.trim(),
+              images: item.logoUrl ? [item.logoUrl] : [],
+              metadata: {
+                placementId: item.placementId,
+                productId: item.productId,
+                domainAuthority: item.domainAuthority?.toString() ?? '',
+                isDoFollow: item.isDoFollow.toString(),
+              },
+            },
+            unit_amount: Math.round(item.unitAmount * 100),
+          },
+          quantity: item.quantity,
+        })),
+        {
+          price_data: {
+            currency,
+            product_data: {
+              name: 'Processing Fee (3%)',
+              description: 'Payment processing fee',
+            },
+            unit_amount: Math.round(processingFee * 100), //cents
+          },
+          quantity: 1,
+        },
+      ];
+
+      const session = await this.stripe.checkout.sessions.create({
+        mode: 'payment',
+        line_items: lineItems,
+        expires_at: Math.floor(Date.now() / 1000) + 20 * 60, //20 min expiry
+        success_url: `${frontendUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
+        cancel_url: `${frontendUrl}/cart`,
+        customer_email: await this.getUserEmail(userId),
         metadata: {
           userId,
           cartId: cart.id,
@@ -76,33 +103,39 @@ export class CheckoutService {
           processingFee: processingFee.toString(),
           amountTotal: amountTotal.toString(),
         },
-        automatic_payment_methods: { enabled: true },
+        payment_intent_data: {
+          metadata: {
+            userId,
+            cartId: cart.id,
+            subtotal: subtotal.toString(),
+            processingFee: processingFee.toString(),
+            amountTotal: amountTotal.toString(),
+          },
+        },
       });
 
-      // Create a PENDING payment record immediately
-      // so we have an audit trail even if the user abandons
+      if (!session.payment_intent) {
+        this.logger.error(`No payment intent on session ${session.id}`);
+        return { url: session.url };
+      }
+
       await prisma.payment.create({
         data: {
-          orderId: '', // no order yet — will be updated by webhook
           userId,
-          stripePaymentIntentId: paymentIntent.id,
+          stripePaymentIntentId: session.payment_intent as string,
+          stripeClientSecret: null,
           amount: amountTotal,
           currency,
           status: PaymentStatus.PENDING,
-          stripeEvent: undefined,
+          expiresAt: new Date(Date.now() + 20 * 60 * 1000),
         },
       });
 
       this.logger.log(
-        `Payment intent ${paymentIntent.id} created for user ${userId}, amount: ${amountTotal} ${currency}`,
+        `Checkout session ${session.id} created for user ${userId}, amount: ${amountTotal} ${currency}`,
       );
 
-      return {
-        // clientSecret: paymentIntent.client_secret,
-        paymentIntentId: paymentIntent.id,
-        amountTotal,
-        currency,
-      };
+      return { url: session.url };
     } catch (error) {
       this.logger.error(
         `createCheckoutSession failed for user ${userId}: ${error.message}`,
@@ -119,5 +152,52 @@ export class CheckoutService {
         'Failed to create checkout session',
       );
     }
+  }
+
+  async getCheckoutSession(
+    sessionId: string,
+    userId: string,
+  ): Promise<CheckoutSessionResponseDto> {
+    try {
+      const session = await this.stripe.checkout.sessions.retrieve(sessionId, {
+        expand: ['line_items', 'payment_intent'],
+      });
+
+      if (!session) {
+        throw new NotFoundException('Checkout session not found');
+      }
+
+      if (session.metadata?.userId !== userId) {
+        throw new NotFoundException('Checkout session not found');
+      }
+
+      return {
+        sessionId: session.id,
+        status: session.status,
+        paymentStatus: session.payment_status,
+        amountTotal: session.amount_total ? session.amount_total / 100 : 0,
+        currency: session.currency,
+        expiresAt: new Date(session.expires_at * 1000),
+        url: session.url,
+      };
+    } catch (error) {
+      this.logger.error(
+        `getCheckoutSession failed for session ${sessionId}: ${error.message}`,
+      );
+
+      if (error instanceof NotFoundException) throw error;
+
+      throw new InternalServerErrorException(
+        'Failed to retrieve checkout session',
+      );
+    }
+  }
+
+  private async getUserEmail(userId: string): Promise<string | undefined> {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true },
+    });
+    return user?.email;
   }
 }

@@ -11,7 +11,6 @@ export class NotificationService {
   constructor(private readonly configService: ConfigService) {
     const sendgridApiKey = this.configService.get<string>('sendgrid.apiKey');
     this.fromEmail = this.configService.get<string>('sendgrid.fromEmail') || '';
-    console.log(this.fromEmail)
     if (!sendgridApiKey) {
       throw new Error('Twilio or SendGrid configuration is missing');
     }

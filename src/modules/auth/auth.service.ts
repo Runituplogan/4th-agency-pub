@@ -13,7 +13,7 @@ import { JwtService } from '@nestjs/jwt';
 import { SignupMode, User, UserStatus } from '@prisma/client';
 import { RegisterUserDto } from './dto/register-user.dto';
 import * as argon2 from 'argon2';
-import { randomInt } from 'crypto';
+import { randomBytes, randomInt } from 'crypto';
 import { LoginUserDto } from './dto/login-user.dto';
 import {
   LoginResponseDto,
@@ -73,20 +73,18 @@ export class AuthService implements OnModuleInit {
       if (existingUser?.email === normalizedEmail) {
         throw new DuplicateException('A user with that email already exists');
       }
-
       if (existingUser?.phoneNumber === normalizedPhone) {
         throw new DuplicateException(
           'A user with that phone number already exists',
         );
       }
 
-      const verificationCode = randomInt(100000, 999999).toString();
+      const verificationToken = randomBytes(32).toString('hex');
       const hashedPassword = await argon2.hash(registerUserDto.password, {
         type: argon2.argon2id,
       });
-
-      const hashedVerificationCode = await argon2.hash(verificationCode);
-      const codeExpiry = new Date(Date.now() + 10 * 60 * 1000); //10 minutes
+      const hashedToken = await argon2.hash(verificationToken);
+      const codeExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
       const newUser = await prisma.$transaction(async (tx) => {
         return tx.user.create({
@@ -99,8 +97,8 @@ export class AuthService implements OnModuleInit {
             signUpMode: SignupMode.REGULAR,
             status: UserStatus.ACTIVE,
             verified: false,
-            emailVerificationCode: hashedVerificationCode,
-            emailCodeExpires: codeExpiry,
+            emailVerificationToken: hashedToken,
+            emailTokenExpires: codeExpiry,
           },
           select: {
             id: true,
@@ -116,13 +114,16 @@ export class AuthService implements OnModuleInit {
         });
       });
 
+      const verificationLink = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&userId=${newUser.id}`;
+
       let emailTemplate: string;
       try {
         emailTemplate = await this.templateService.getEmailVerificationTemplate(
           {
             firstName: registerUserDto.firstName,
-            verificationCode,
+            verificationLink,
             year: new Date().getFullYear().toString(),
+            expiration_time: codeExpiry,
           },
         );
       } catch (error) {
@@ -149,18 +150,15 @@ export class AuthService implements OnModuleInit {
       this.logger.log(
         `New user registered: ${newUser.email} (id: ${newUser.id})`,
       );
-
       return newUser;
     } catch (error) {
       this.logger.error(`Registration failed: ${error.message}`);
-
       if (
         error instanceof DuplicateException ||
         error instanceof BadRequestException
       ) {
         throw error;
       }
-
       throw new InternalServerErrorException('Failed to register user');
     }
   }
@@ -282,12 +280,10 @@ export class AuthService implements OnModuleInit {
     }
   }
 
-  async verifyAccount(
-    verifyAccountDto: VerifyAccountDto,
-  ): Promise<LoginResponseDto> {
+  async verifyEmail(token: string, userId: string): Promise<LoginResponseDto> {
     try {
-      const user = await prisma.user.findFirst({
-        where: { email: verifyAccountDto.email.toLowerCase().trim() },
+      const user = await prisma.user.findUnique({
+        where: { id: userId },
         select: {
           id: true,
           firstName: true,
@@ -298,35 +294,35 @@ export class AuthService implements OnModuleInit {
           status: true,
           verified: true,
           signUpMode: true,
-          emailVerificationCode: true,
-          emailCodeExpires: true,
+          emailVerificationToken: true,
+          emailTokenExpires: true,
           createdAt: true,
           updatedAt: true,
         },
       });
 
       if (!user) {
-        throw new BadRequestException('Verification code is invalid');
+        throw new BadRequestException('Verification link is invalid');
       }
 
       if (user.verified) {
         throw new BadRequestException('Account is already verified');
       }
 
-      if (!user.emailCodeExpires || user.emailCodeExpires < new Date()) {
-        throw new BadRequestException('Verification code has expired');
+      if (!user.emailTokenExpires || user.emailTokenExpires < new Date()) {
+        throw new BadRequestException('Verification link has expired');
       }
 
-      if (!user.emailVerificationCode) {
-        throw new BadRequestException('Verification code is invalid');
+      if (!user.emailVerificationToken) {
+        throw new BadRequestException('Verification link is invalid');
       }
 
-      const isCodeValid = await argon2.verify(
-        user.emailVerificationCode,
-        verifyAccountDto.code,
+      const isTokenValid = await argon2.verify(
+        user.emailVerificationToken,
+        token,
       );
-      if (!isCodeValid) {
-        throw new BadRequestException('Verification code is invalid');
+      if (!isTokenValid) {
+        throw new BadRequestException('Verification link is invalid');
       }
 
       const payload: JwtPayload = {
@@ -350,13 +346,12 @@ export class AuthService implements OnModuleInit {
 
       const hashedRefreshToken = await argon2.hash(refreshToken);
 
-      // Single update — clear verification fields and store refresh token together
       await prisma.user.update({
         where: { id: user.id },
         data: {
           verified: true,
-          emailVerificationCode: null,
-          emailCodeExpires: null,
+          emailVerificationToken: null,
+          emailTokenExpires: null,
           refreshToken: hashedRefreshToken,
         },
       });
@@ -374,7 +369,7 @@ export class AuthService implements OnModuleInit {
           phoneNumber: user.phoneNumber,
           googleId: user.googleId,
           status: user.status,
-          verified: true, // we just verified them, no need to re-read from DB
+          verified: true,
           createdAt: user.createdAt,
           updatedAt: user.updatedAt,
           signUpMode: user.signUpMode,
@@ -384,7 +379,7 @@ export class AuthService implements OnModuleInit {
       };
     } catch (error) {
       this.logger.error(
-        `Account verification failed for "${verifyAccountDto.email}": ${error.message}`,
+        `Account verification failed for user "${userId}": ${error.message}`,
       );
 
       if (error instanceof BadRequestException) {

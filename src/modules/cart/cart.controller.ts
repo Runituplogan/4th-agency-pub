@@ -16,8 +16,8 @@ import { UnauthorizedException } from 'src/common/exceptions';
 import { CartService } from './cart.service';
 import type { Request, Response } from 'express';
 import { AddToCartDto } from './dto/create-cart.dto';
-import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 import { UpdateCartItemDto } from './dto/update-cart.dto';
+import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 
 @Controller('cart')
 export class CartController {
