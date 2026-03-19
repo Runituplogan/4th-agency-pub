@@ -20,16 +20,18 @@ export class WebhookController {
   @Post('stripe')
   @HttpCode(HttpStatus.OK)
   async handleStripeWebhook(
-    @Req() req: RawBodyRequest<Request>,
+    @Req() req: Request,
     @Headers('stripe-signature') signature: string,
   ) {
     if (!signature) {
       throw new BadRequestException('Missing stripe-signature header');
     }
-    if (!req.rawBody) {
+    const payload = req.body;
+
+    if (!payload || !Buffer.isBuffer(payload)) {
       throw new BadRequestException('Missing raw body in request');
     }
-    const event = this.webhookService.constructEvent(req.rawBody, signature);
+    const event = this.webhookService.constructEvent(payload, signature);
 
     await this.webhookService.handleWebhookEvent(event);
 

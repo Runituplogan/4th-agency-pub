@@ -1,6 +1,13 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { json, urlencoded, NextFunction, Request, Response } from 'express';
+import {
+  json,
+  urlencoded,
+  NextFunction,
+  Request,
+  Response,
+  raw,
+} from 'express';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AllHttpExceptionFilter } from './common/filters/http-exception.filter';
@@ -11,27 +18,12 @@ async function bootstrap() {
     rawBody: true,
   });
 
+  app.use('/webhook/stripe', raw({ type: 'application/json' }));
   app.enableCors({
     origin: ['http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'credentials'],
-  });
-
-  app.use((req, res, next) => {
-    if (req.path === '/webhook/stripe') {
-      next();
-    } else {
-      json({ limit: '50mb' })(req, res, next);
-    }
-  });
-
-  app.use((req, res, next) => {
-    if (req.path === '/webhook/stripe') {
-      next();
-    } else {
-      urlencoded({ extended: true, limit: '50mb' })(req, res, next);
-    }
   });
 
   app.use(json({ limit: '50mb' }));
