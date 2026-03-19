@@ -18,6 +18,22 @@ async function bootstrap() {
     allowedHeaders: ['Content-Type', 'Authorization', 'credentials'],
   });
 
+  app.use((req, res, next) => {
+    if (req.path === '/webhook/stripe') {
+      next();
+    } else {
+      json({ limit: '50mb' })(req, res, next);
+    }
+  });
+
+  app.use((req, res, next) => {
+    if (req.path === '/webhook/stripe') {
+      next();
+    } else {
+      urlencoded({ extended: true, limit: '50mb' })(req, res, next);
+    }
+  });
+
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
   app.use(cookieParser());
