@@ -39,6 +39,9 @@ export class CartService {
           where: { id: existingItem.id },
           data: {
             quantity: existingItem.quantity + (addToCartDto.quantity ?? 1),
+            contentType: addToCartDto.contentType ?? existingItem.contentType,
+            contentTypeFee:
+              addToCartDto.contentTypeFee ?? existingItem.contentTypeFee,
           },
         });
       } else {
@@ -46,19 +49,24 @@ export class CartService {
           data: {
             cartId: cart.id,
             placementId: addToCartDto.placementId,
-            productId: addToCartDto.productId,
             name: addToCartDto.name,
             websiteUrl: addToCartDto.websiteUrl,
             logoUrl: addToCartDto.logoUrl,
             country: addToCartDto.country,
-            type: addToCartDto.type,
+            outletName: addToCartDto.outletName,
+            channelType: addToCartDto.channelType,
+            placementType: addToCartDto.placementType,
             domainAuthority: addToCartDto.domainAuthority,
             domainRanking: addToCartDto.domainRanking,
             isDoFollow: addToCartDto.isDoFollow ?? false,
+            minDeliveryDays: addToCartDto.minDeliveryDays,
+            maxDeliveryDays: addToCartDto.maxDeliveryDays,
             unitAmount: addToCartDto.unitAmount,
             pricingTier: addToCartDto.pricingTier,
-            currency: addToCartDto.currency ?? 'USD',
+            currency: addToCartDto.currency ?? 'usd',
             quantity: addToCartDto.quantity ?? 1,
+            contentType: addToCartDto.contentType ?? 'self',
+            contentTypeFee: addToCartDto.contentTypeFee ?? 0,
           },
         });
       }
@@ -182,7 +190,7 @@ export class CartService {
     }
   }
 
-  async clearCart(userId: string): Promise<{ message: string }> {
+  async clearCart(userId: string): Promise<any> {
     try {
       const cart = await prisma.cart.findUnique({
         where: { userId },
@@ -195,8 +203,6 @@ export class CartService {
       await prisma.cartItem.deleteMany({ where: { cartId: cart.id } });
 
       this.logger.log(`Cart cleared for user ${userId}`);
-
-      return { message: 'Cart cleared successfully' };
     } catch (error) {
       this.logger.error(`clearCart failed: ${error.message}`);
 
@@ -218,7 +224,9 @@ export class CartService {
 
     const mappedItems: CartItemResponseDto[] = cart.items.map((item) => ({
       ...item,
-      lineTotal: parseFloat((item.unitAmount * item.quantity).toFixed(2)),
+      lineTotal: parseFloat(
+        ((item.unitAmount + item.contentTypeFee) * item.quantity).toFixed(2),
+      ),
     }));
 
     const subtotal = mappedItems.reduce((sum, item) => sum + item.lineTotal, 0);
@@ -233,7 +241,7 @@ export class CartService {
       subtotal: parseFloat(subtotal.toFixed(2)),
       processingFee,
       total,
-      currency: cart.items[0]?.currency ?? 'USD',
+      currency: cart.items[0]?.currency ?? 'usd',
       itemCount: cart.items.reduce((sum, item) => sum + item.quantity, 0),
       createdAt: cart.createdAt,
       updatedAt: cart.updatedAt,

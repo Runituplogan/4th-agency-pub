@@ -4,15 +4,18 @@ export class CartItemResponseDto {
   id: string;
   cartId: string;
   placementId: string;
-  productId: string;
   name: string;
   websiteUrl: string;
   logoUrl: string | null;
   country: string | null;
-  type: string;
+  outletName: string | null;
+  channelType: string | null;
+  placementType: string;
   domainAuthority: number | null;
   domainRanking: number | null;
   isDoFollow: boolean;
+  minDeliveryDays: number | null;
+  maxDeliveryDays: number | null;
   unitAmount: number;
   pricingTier: string;
   currency: string;
@@ -20,6 +23,8 @@ export class CartItemResponseDto {
   lineTotal: number;
   createdAt: Date;
   updatedAt: Date;
+  contentType: string | null;
+  contentTypeFee: number;
 }
 
 export class CartResponseDto {

@@ -116,7 +116,7 @@ export class WebhookService {
 
     try {
       await prisma.$transaction(async (tx) => {
-        const order = await tx.order.create({
+        order = await tx.order.create({
           data: {
             userId,
             cartId,
@@ -131,28 +131,34 @@ export class WebhookService {
             items: {
               create: cart.items.map((item) => ({
                 placementId: item.placementId,
-                productId: item.productId,
                 name: item.name,
                 websiteUrl: item.websiteUrl,
                 logoUrl: item.logoUrl,
                 country: item.country,
-                type: item.type,
+                outletName: item.outletName,
+                channelType: item.channelType,
+                placementType: item.placementType,
                 domainAuthority: item.domainAuthority,
                 domainRanking: item.domainRanking,
                 isDoFollow: item.isDoFollow,
+                minDeliveryDays: item.minDeliveryDays,
+                maxDeliveryDays: item.maxDeliveryDays,
                 unitAmount: item.unitAmount,
                 pricingTier: item.pricingTier,
                 currency: item.currency,
                 quantity: item.quantity,
+                contentType: item.contentType,
+                contentTypeFee: item.contentTypeFee,
               })),
             },
           },
         });
 
         await tx.payment.updateMany({
-          where: { stripePaymentIntentId: session.payment_intent as string },
+          where: { stripeSessionId: session.id },
           data: {
             orderId: order.id,
+            stripePaymentIntentId: session.payment_intent as string,
             status: PaymentStatus.SUCCEEDED,
             stripeChargeId: charge?.id ?? null,
             paymentMethod: charge?.payment_method_details?.type ?? null,
@@ -162,7 +168,6 @@ export class WebhookService {
             stripeEvent: event as any,
           },
         });
-
         await tx.cart.update({
           where: { id: cartId },
           data: { status: CartStatus.CHECKED_OUT },
@@ -175,17 +180,16 @@ export class WebhookService {
       throw txError;
     }
 
-    try {
-      const user = await prisma.user.findUnique({
-        where: { id: userId },
-        select: { email: true, firstName: true },
-      });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, firstName: true },
+    });
 
-      if (user) {
-        try {
-          const orderItemsHtml = cart.items
-            .map(
-              (item) => `
+    if (user) {
+      try {
+        const orderItemsHtml = cart.items
+          .map(
+            (item) => `
         <table width="100%" cellpadding="0" cellspacing="0" border="0"
           style="margin-bottom:10px;background:#f9fafb;border-radius:6px;border:1px solid #e5e7eb;">
           <tr>
@@ -197,47 +201,43 @@ export class WebhookService {
                 ${item.websiteUrl}
               </p>
               <p style="margin:0;font-size:13px;color:#374151;">
-                Qty: ${item.quantity} × ${item.currency.toUpperCase()} ${item.unitAmount.toFixed(2)}
-                = <strong>${item.currency.toUpperCase()} ${(item.quantity * item.unitAmount).toFixed(2)}</strong>
+               Qty: ${item.quantity} × ${item.currency.toUpperCase()} ${item.unitAmount.toFixed(2)}
+= <strong>${item.currency.toUpperCase()} ${(item.quantity * item.unitAmount).toFixed(2)}</strong>
               </p>
             </td>
           </tr>
         </table>
       `,
-            )
-            .join('');
+          )
+          .join('');
 
-          const emailTemplate =
-            await this.templateService.orderConfirmedTemplate({
-              firstName: user.firstName,
-              orderId: order.id,
-              orderDate: new Date().toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'long',
-                day: 'numeric',
-              }),
-              orderTotal: `${session.currency?.toUpperCase() ?? 'USD'} ${parseFloat(amountTotal).toFixed(2)}`,
-              orderItems: orderItemsHtml,
-              year: new Date().getFullYear().toString(),
-            });
+        const emailTemplate = await this.templateService.orderConfirmedTemplate(
+          {
+            firstName: user.firstName,
+            orderId: order.id,
+            orderDate: new Date().toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            }),
+            orderTotal: `${session.currency?.toUpperCase() ?? 'USD'} ${parseFloat(amountTotal).toFixed(2)}`,
+            orderItems: orderItemsHtml,
+            year: new Date().getFullYear().toString(),
+          },
+        );
 
-          await this.notificationService.sendEmail({
-            to: user.email,
-            subject: 'Your Order has been Placed — 4E Agency',
-            html: emailTemplate,
-          });
+        await this.notificationService.sendEmail({
+          to: user.email,
+          subject: 'Your Order has been Placed — 4E Agency',
+          html: emailTemplate,
+        });
 
-          this.logger.log(`Order confirmation email sent to ${user.email}`);
-        } catch (emailError) {
-          this.logger.error(
-            `Order confirmation email failed for user ${userId}: ${emailError.message}`,
-          );
-        }
+        this.logger.log(`Order confirmation email sent to ${user.email}`);
+      } catch (emailError) {
+        this.logger.error(
+          `Order confirmation email failed for user ${userId}: ${emailError.message}`,
+        );
       }
-    } catch (emailError) {
-      this.logger.error(
-        `Order confirmation email failed for user ${userId}: ${emailError.message}`,
-      );
     }
 
     this.logger.log(`Order created for session ${session.id}, user ${userId}`);
@@ -246,13 +246,8 @@ export class WebhookService {
   private async handleCheckoutExpired(event: Stripe.Event): Promise<void> {
     const session = event.data.object as Stripe.Checkout.Session;
 
-    if (!session.payment_intent) {
-      this.logger.warn(`Session ${session.id} expired with no payment intent`);
-      return;
-    }
-
     await prisma.payment.updateMany({
-      where: { stripePaymentIntentId: session.payment_intent as string },
+      where: { stripeSessionId: session.id },
       data: {
         status: PaymentStatus.FAILED,
         failureMessage: 'Checkout session expired',

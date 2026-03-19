@@ -15,10 +15,6 @@ export class AddToCartDto {
 
   @IsNotEmpty()
   @IsString()
-  productId: string;
-
-  @IsNotEmpty()
-  @IsString()
   name: string;
 
   @IsNotEmpty()
@@ -33,9 +29,17 @@ export class AddToCartDto {
   @IsString()
   country?: string;
 
+  @IsOptional()
+  @IsString()
+  outletName?: string;
+
+  @IsOptional()
+  @IsString()
+  channelType?: string;
+
   @IsNotEmpty()
   @IsString()
-  type: string;
+  placementType: string;
 
   @IsOptional()
   @IsInt()
@@ -49,9 +53,16 @@ export class AddToCartDto {
   @IsBoolean()
   isDoFollow?: boolean;
 
+  @IsOptional()
+  @IsInt()
+  minDeliveryDays?: number;
+
+  @IsOptional()
+  @IsInt()
+  maxDeliveryDays?: number;
+
   @IsNotEmpty()
-  @IsNumber()
-  @Min(0)
+  @IsInt()
   unitAmount: number;
 
   @IsNotEmpty()
@@ -60,10 +71,19 @@ export class AddToCartDto {
 
   @IsOptional()
   @IsString()
-  currency?: string = 'USD';
+  currency?: string;
 
   @IsOptional()
   @IsInt()
   @Min(1)
-  quantity?: number = 1;
+  quantity?: number;
+
+  @IsOptional()
+  @IsString()
+  contentType?: string; 
+
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  contentTypeFee?: number;
 }

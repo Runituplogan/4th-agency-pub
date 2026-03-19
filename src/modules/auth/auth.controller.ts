@@ -16,13 +16,12 @@ import type { Request, Response } from 'express';
 import { RegisterUserDto } from './dto/register-user.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { Public } from 'src/common/decorators/public.decorator';
-import { UnauthorizedException } from 'src/common/exceptions';
+import {
+  BadRequestException,
+  UnauthorizedException,
+} from 'src/common/exceptions';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
-import { VerifyResetCodeDto } from './dto/verifiy-reset-code.dto';
-import { LoginResponseDto } from './interfaces/user-login.interface';
-import { VerifyAccountDto } from './dto/verifiy-account.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 
@@ -85,13 +84,18 @@ export class AuthController {
 
   @Public()
   @Get('verify-email')
+  @HttpCode(HttpStatus.OK)
   async verifyEmail(
     @Query('token') token: string,
     @Query('userId') userId: string,
-    @Res() res: Response,
   ) {
+    if (!token || !userId) {
+      throw new BadRequestException('Token and userId are required');
+    }
+
     await this.authService.verifyEmail(token, userId);
-    return res.redirect(`${process.env.FRONTEND_URL}/login?verified=true`);
+
+    return { message: 'Email verified successfully. You can now log in.' };
   }
 
   @Public()
@@ -107,41 +111,12 @@ export class AuthController {
   }
 
   @Public()
-  @Post('verify-reset-code')
+  @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
-  async verifyPasswordResetCode(
-    @Body() verifyResetCodeDto: VerifyResetCodeDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { resetToken } =
-      await this.authService.verifyPasswordResetCode(verifyResetCodeDto);
-
-    res.locals.message =
-      'Reset code verified successfully. You may now reset your password.';
-
-    return { data: { resetToken } };
-  }
-
-  @Public()
-  @Post('reset-password')
-  @HttpCode(HttpStatus.OK)
-  async resetPassword(
-    @Body() resetPasswordDto: ResetPasswordDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { message } = await this.authService.resetPassword(resetPasswordDto);
-    res.locals.message = message;
-  }
-
-  @Public()
-  @Post('resend-code')
-  @HttpCode(HttpStatus.OK)
-  async resendResetCode(
-    @Body() resendCodeDto: ForgotPasswordDto,
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const { message } = await this.authService.resendResetCode(resendCodeDto);
-    res.locals.message = message;
+  async resendVerificationEmail(
+    @Body('email') email: string,
+  ): Promise<{ message: string }> {
+    return this.authService.resendVerificationEmail(email);
   }
 
   @Patch('update-password')
@@ -160,6 +135,29 @@ export class AuthController {
     res.locals.message = 'Password updated successfully. Please log in again.';
   }
 
+  @Post('logout')
+  @UseGuards(JwtAuthGuard)
+  @HttpCode(HttpStatus.OK)
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
+    const refreshToken = req.cookies.refreshToken;
+
+    if (!refreshToken) {
+      throw new UnauthorizedException('No refresh token found');
+    }
+    const isProduction = this.configService.get('NODE_ENV') === 'production';
+
+    const result = await this.authService.logout(refreshToken);
+    res.clearCookie('refreshToken', {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite: isProduction ? 'strict' : 'lax',
+      path: '/',
+    });
+    res.locals.message = 'Successfully logged out';
+
+    return result;
+  }
+
   private setRefreshTokenCookie(res: Response, refreshToken: string): void {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
 
@@ -167,7 +165,7 @@ export class AuthController {
       httpOnly: true,
       secure: isProduction,
       sameSite: isProduction ? 'strict' : 'lax',
-      path: '/auth/refresh-token',
+      path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
   }

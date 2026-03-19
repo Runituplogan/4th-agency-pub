@@ -3,12 +3,12 @@ import { OrderStatus, PaymentStatus } from '@prisma/client';
 export class OrderItemResponseDto {
   id: string;
   placementId: string;
-  productId: string;
+  channelType: string;
+  placementType: string;
   name: string;
   websiteUrl: string;
   logoUrl: string | null;
   country: string | null;
-  type: string;
   domainAuthority: number | null;
   domainRanking: number | null;
   isDoFollow: boolean;

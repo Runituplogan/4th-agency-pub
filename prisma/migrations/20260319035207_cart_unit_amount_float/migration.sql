@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "CartItem" ALTER COLUMN "unitAmount" SET DATA TYPE DOUBLE PRECISION;

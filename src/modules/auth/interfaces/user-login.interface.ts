@@ -21,7 +21,7 @@ export interface LoginResponseDto {
     firstName: string;
     secondName: string;
     email: string;
-    phoneNumber: string;
+    phoneNumber: string | null;
     status: UserStatus;
     googleId: string | null;
     verified: boolean;

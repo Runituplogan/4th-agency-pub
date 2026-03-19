@@ -9,6 +9,7 @@ import {
   registerDecorator,
   ValidationOptions,
   ValidationArguments,
+  IsOptional,
 } from 'class-validator';
 
 import { Transform } from 'class-transformer';
@@ -33,12 +34,9 @@ export class RegisterUserDto {
   @Transform(({ value }) => value?.toLowerCase().trim())
   email: string;
 
-  @IsPhoneNumber('NG', {
-    message: 'Please provide a valid Nigerian phone number',
-  })
-  @IsNotEmpty({ message: 'Phone number is required' })
+  @IsOptional()
   @Transform(({ value }) => value?.trim())
-  phoneNumber: string;
+  phoneNumber?: string;
 
   @IsNotEmpty({ message: 'Password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters long' })

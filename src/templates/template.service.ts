@@ -86,6 +86,40 @@ export class TemplateService {
     return this.getEmailTemplate('email-verification', templateData);
   }
 
+  async resendEmailVerificationTemplate(data: {
+    firstName: string;
+    verificationLink: string;
+    year: string;
+    expiration_time: Date | null;
+    appName?: string;
+    supportEmail?: string;
+  }): Promise<string> {
+    const templateData = {
+      FIRST_NAME: data.firstName,
+      VERIFICATION_LINK: data.verificationLink,
+      YEAR: data.year,
+      EXPIRATION_TIME: data.expiration_time
+        ? data.expiration_time.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'N/A',
+      APP_NAME: '4E AGENCY',
+      SUPPORT_EMAIL:
+        data.supportEmail ??
+        this.configService.get('SUPPORT_EMAIL') ??
+        'support@example.com',
+    };
+
+    return this.getEmailTemplate(
+      'resend-email-verification',
+      templateData,
+    );
+  }
+
   async orderConfirmedTemplate(data: {
     firstName: string;
     orderId: string;
@@ -125,46 +159,5 @@ export class TemplateService {
     };
 
     return this.getEmailTemplate('order-placed-success', templateData);
-  }
-
-  async getPasswordResetTemplate(data: {
-    firstName: string;
-    resetCode: string;
-    year: number;
-    appName?: string;
-    supportEmail?: string;
-  }): Promise<string> {
-    const templateData = {
-      FIRST_NAME: data.firstName,
-      RESET_CODE: data.resetCode,
-      YEAR: data.year.toString(),
-      APP_NAME: '4E AGENCY',
-      SUPPORT_EMAIL:
-        data.supportEmail ||
-        this.configService.get('SUPPORT_EMAIL') ||
-        'support@example.com',
-    };
-
-    return this.getEmailTemplate('password-reset', templateData);
-  }
-
-  async getUpdatePasswordTemplate(data: {
-    firstName: string;
-    year: number;
-    loginUrl?: string;
-    appName?: string;
-    supportEmail?: string;
-  }): Promise<string> {
-    const templateData = {
-      FIRST_NAME: data.firstName,
-      LOGIN_URL: process.env.LOGIN_URL || '',
-      YEAR: data.year.toString(),
-      APP_NAME: '4E AGENCY',
-      SUPPORT_EMAIL:
-        data.supportEmail ||
-        this.configService.get('SUPPORT_EMAIL') ||
-        'support@example.com',
-    };
-    return this.getEmailTemplate('update-password', templateData);
   }
 }

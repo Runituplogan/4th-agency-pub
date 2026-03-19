@@ -61,22 +61,16 @@ export class AuthService implements OnModuleInit {
   async registerUser(registerUserDto: RegisterUserDto) {
     try {
       const normalizedEmail = registerUserDto.email.toLowerCase().trim();
-      const normalizedPhone = registerUserDto.phoneNumber.trim();
 
       const existingUser = await prisma.user.findFirst({
         where: {
-          OR: [{ email: normalizedEmail }, { phoneNumber: normalizedPhone }],
+          email: normalizedEmail,
         },
         select: { email: true, phoneNumber: true },
       });
 
       if (existingUser?.email === normalizedEmail) {
         throw new DuplicateException('A user with that email already exists');
-      }
-      if (existingUser?.phoneNumber === normalizedPhone) {
-        throw new DuplicateException(
-          'A user with that phone number already exists',
-        );
       }
 
       const verificationToken = randomBytes(32).toString('hex');
@@ -92,7 +86,6 @@ export class AuthService implements OnModuleInit {
             firstName: registerUserDto.firstName.trim(),
             secondName: registerUserDto.secondName.trim(),
             email: normalizedEmail,
-            phoneNumber: normalizedPhone,
             password: hashedPassword,
             signUpMode: SignupMode.REGULAR,
             status: UserStatus.ACTIVE,
@@ -114,7 +107,7 @@ export class AuthService implements OnModuleInit {
         });
       });
 
-      const verificationLink = `${process.env.FRONTEND_URL}/auth/verify-email?token=${verificationToken}&userId=${newUser.id}`;
+      const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&userId=${newUser.id}`;
 
       let emailTemplate: string;
       try {
@@ -505,6 +498,92 @@ export class AuthService implements OnModuleInit {
     }
   }
 
+  async resendVerificationEmail(email: string): Promise<{ message: string }> {
+    const genericResponse = {
+      message:
+        'If an account with that email exists, we have sent a verification email.',
+    };
+
+    try {
+      const identifier = email.trim().toLowerCase();
+
+      const user = await prisma.user.findFirst({
+        where: {
+          email: identifier,
+        },
+        select: {
+          id: true,
+          email: true,
+          firstName: true,
+          verified: true,
+          status: true,
+        },
+      });
+
+      if (!user) return genericResponse;
+
+      if (user.verified) {
+        throw new BadRequestException(
+          'Your account has been verified, please Log in',
+        );
+      }
+
+      const verificationToken = randomBytes(32).toString('hex');
+      const hashedToken = await argon2.hash(verificationToken);
+      const codeExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          emailVerificationToken: hashedToken,
+          emailTokenExpires: codeExpiry,
+        },
+      });
+
+      const verificationLink = `${process.env.FRONTEND_URL}/verify-email?token=${verificationToken}&userId=${user.id}`;
+
+      let emailTemplate: string;
+      try {
+        emailTemplate =
+          await this.templateService.resendEmailVerificationTemplate({
+            firstName: user.firstName,
+            verificationLink,
+            year: new Date().getFullYear().toString(),
+            expiration_time: codeExpiry,
+          });
+      } catch (error) {
+        this.logger.error(
+          `Failed to load verification email template: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to process registration. Please try again later.',
+        );
+      }
+
+      try {
+        await this.notificationService.sendEmail({
+          to: user.email,
+          subject: 'Verify your Account',
+          html: emailTemplate,
+        });
+      } catch (emailError) {
+        this.logger.error(
+          `Verification email failed for user ${user.id}: ${emailError.message}`,
+        );
+      }
+
+      return genericResponse;
+    } catch (error) {
+      this.logger.error(`Resend verification email failed: ${error.message}`);
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new InternalServerErrorException(
+        'Failed to resend verification email',
+      );
+    }
+  }
+
   async forgotPassword(
     forgotPasswordDto: ForgotPasswordDto,
   ): Promise<{ message: string }> {
@@ -652,106 +731,6 @@ export class AuthService implements OnModuleInit {
     }
   }
 
-  async resendResetCode(
-    resendResetCodeDto: ForgotPasswordDto,
-  ): Promise<{ message: string }> {
-    const genericResponse = {
-      message:
-        'If an account with that email or phone number exists, we have sent a password reset code.',
-    };
-
-    try {
-      const identifier = resendResetCodeDto.email.trim();
-      const normalizedIdentifier = identifier.toLowerCase();
-
-      const user = await prisma.user.findFirst({
-        where: {
-          OR: [{ email: normalizedIdentifier }, { phoneNumber: identifier }],
-        },
-        select: {
-          id: true,
-          email: true,
-          phoneNumber: true,
-          firstName: true,
-          verified: true,
-          status: true,
-          signUpMode: true,
-          passwordResetAttempts: true,
-          passwordResetLastSent: true,
-          passwordResetAttemptResetAt: true,
-        },
-      });
-
-      if (!user) return genericResponse;
-
-      if (
-        !user.verified ||
-        user.status !== UserStatus.ACTIVE ||
-        user.signUpMode !== SignupMode.REGULAR
-      ) {
-        return genericResponse;
-      }
-
-      const now = new Date();
-      const COOLDOWN_MS = 60 * 1000; //1 min between sends
-      const MAX_ATTEMPTS = 5;
-      const WINDOW_MS = 24 * 60 * 60 * 1000; //24 hour window
-
-      if (
-        user.passwordResetLastSent &&
-        now.getTime() - user.passwordResetLastSent.getTime() < COOLDOWN_MS
-      ) {
-        throw new TooManyRequestsException(
-          'Please wait before requesting another code.',
-        );
-      }
-
-      const windowExpired =
-        !user.passwordResetAttemptResetAt ||
-        user.passwordResetAttemptResetAt < now;
-
-      const currentAttempts = windowExpired ? 0 : user.passwordResetAttempts;
-
-      if (currentAttempts >= MAX_ATTEMPTS) {
-        throw new TooManyRequestsException(
-          'You have reached the resend limit. Please try again later.',
-        );
-      }
-
-      const resetCode = randomInt(100000, 999999).toString();
-      const hashedResetCode = await argon2.hash(resetCode);
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordResetCode: hashedResetCode,
-          passwordResetExpires: new Date(now.getTime() + 10 * 60 * 1000),
-          passwordResetLastSent: now,
-          passwordResetAttempts: currentAttempts + 1,
-          passwordResetAttemptResetAt: windowExpired
-            ? new Date(now.getTime() + WINDOW_MS)
-            : user.passwordResetAttemptResetAt,
-        },
-      });
-
-      const isEmail = user.email === normalizedIdentifier;
-
-      //email
-
-      return genericResponse;
-    } catch (error) {
-      this.logger.error(`Resend reset code failed: ${error.message}`);
-
-      if (error instanceof TooManyRequestsException) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException(
-        'Failed to resend password reset code',
-      );
-    }
-  }
-
   async verifyPasswordResetCode(
     verifyResetCodeDto: VerifyResetCodeDto,
   ): Promise<{ resetToken: string }> {
@@ -896,6 +875,20 @@ export class AuthService implements OnModuleInit {
       }
 
       throw new InternalServerErrorException('Failed to reset password');
+    }
+  }
+
+  async logout(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+      await prisma.user.update({
+        where: { id: payload.sub },
+        data: { refreshToken: null },
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 }

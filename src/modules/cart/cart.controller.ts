@@ -98,7 +98,7 @@ export class CartController {
       throw new UnauthorizedException('User authentication required');
 
     const result = await this.cartService.clearCart(userId);
-    res.locals.message = result.message;
+    res.locals.message = 'Cart cleared successfully';
     return result;
   }
 }

@@ -19,7 +19,7 @@ model User {
   secondName   String
   username     String?    @unique
   email        String     @unique
-  phoneNumber  String     @unique
+  phoneNumber  String?    @unique
   password     String?
   status       UserStatus @default(ACTIVE)
   verified     Boolean    @default(false)
@@ -85,22 +85,29 @@ model CartItem {
   cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
   placementId String
-  productId   String
 
   name       String
   websiteUrl String
   logoUrl    String?
   country    String?
-  type       String
+  outletName String?
 
+  channelType     String?
+  placementType   String
   domainAuthority Int?
   domainRanking   Int?
   isDoFollow      Boolean @default(false)
 
+  minDeliveryDays Int?
+  maxDeliveryDays Int?
+
   unitAmount  Float
   pricingTier String
-  currency    String @default("USD")
+  currency    String @default("usd")
   quantity    Int    @default(1)
+
+  contentType    String?
+  contentTypeFee Float   @default(0)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -150,19 +157,25 @@ model OrderItem {
   order   Order  @relation(fields: [orderId], references: [id])
 
   placementId     String
-  productId       String
   name            String
   websiteUrl      String
   logoUrl         String?
   country         String?
-  type            String
+  outletName      String?
+  channelType     String?
+  placementType   String
   domainAuthority Int?
   domainRanking   Int?
   isDoFollow      Boolean @default(false)
-  unitAmount      Float
+  minDeliveryDays Int?
+  maxDeliveryDays Int?
+  unitAmount      Int
   pricingTier     String
-  currency        String  @default("USD")
+  currency        String  @default("usd")
   quantity        Int
+
+  contentType    String?
+  contentTypeFee Float   @default(0)
 
   createdAt DateTime @default(now())
 
@@ -187,6 +200,7 @@ model Payment {
   stripeChargeId        String?
   stripeCustomerId      String?
   stripeClientSecret    String?
+  stripeSessionId       String?
 
   amount        Float
   currency      String        @default("USD")

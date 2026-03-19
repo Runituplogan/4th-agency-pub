@@ -45,37 +45,62 @@ export class CheckoutService {
       }
 
       const frontendUrl = this.configService.getOrThrow('FRONTEND_URL');
+      const currency = cart.items[0].currency.toLowerCase();
 
       const subtotal = cart.items.reduce(
-        (sum, item) => sum + item.unitAmount * item.quantity,
+        (sum, item) =>
+          sum + (item.unitAmount + item.contentTypeFee) * item.quantity,
         0,
       );
       const processingFee = parseFloat(
         (subtotal * this.processingFeePercent).toFixed(2),
       );
       const amountTotal = parseFloat((subtotal + processingFee).toFixed(2));
-      const currency = cart.items[0].currency.toLowerCase();
 
       const lineItems: Stripe.Checkout.SessionCreateParams.LineItem[] = [
-        ...cart.items.map((item) => ({
-          price_data: {
-            currency,
-            product_data: {
-              name: item.name,
-              description:
-                `${item.type} • ${item.websiteUrl} • ${item.country ?? ''}`.trim(),
-              images: item.logoUrl ? [item.logoUrl] : [],
-              metadata: {
-                placementId: item.placementId,
-                productId: item.productId,
-                domainAuthority: item.domainAuthority?.toString() ?? '',
-                isDoFollow: item.isDoFollow.toString(),
+        ...cart.items.flatMap((item) => [
+          {
+            price_data: {
+              currency,
+              product_data: {
+                name: item.name,
+                description:
+                  `${item.websiteUrl} • ${item.country ?? ''}`.trim(),
+                images: item.logoUrl ? [item.logoUrl] : [],
+                metadata: {
+                  placementId: item.placementId,
+                  channelType: item.channelType ?? '',
+                  placementType: item.placementType,
+                  domainAuthority: item.domainAuthority?.toString() ?? '',
+                  isDoFollow: item.isDoFollow.toString(),
+                },
               },
+              unit_amount: Math.round(item.unitAmount * 100),
             },
-            unit_amount: Math.round(item.unitAmount * 100),
+            quantity: item.quantity,
           },
-          quantity: item.quantity,
-        })),
+          ...(item.contentTypeFee > 0
+            ? [
+                {
+                  price_data: {
+                    currency,
+                    product_data: {
+                      name: `${item.name} — ${
+                        item.contentType === 'personal'
+                          ? 'Personal Profile'
+                          : item.contentType === 'marketing'
+                            ? 'Marketing Blast'
+                            : 'Content Fee'
+                      }`,
+                      description: 'Content type fee',
+                    },
+                    unit_amount: Math.round(item.contentTypeFee * 100),
+                  },
+                  quantity: item.quantity,
+                },
+              ]
+            : []),
+        ]),
         {
           price_data: {
             currency,
@@ -83,56 +108,56 @@ export class CheckoutService {
               name: 'Processing Fee (3%)',
               description: 'Payment processing fee',
             },
-            unit_amount: Math.round(processingFee * 100), //cents
+            unit_amount: Math.round(processingFee * 100),
           },
           quantity: 1,
         },
       ];
-
       const session = await this.stripe.checkout.sessions.create({
         mode: 'payment',
         line_items: lineItems,
-        expires_at: Math.floor(Date.now() / 1000) + 20 * 60, //20 min expiry
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
         success_url: `${frontendUrl}/checkout/success?session_id={CHECKOUT_SESSION_ID}`,
         cancel_url: `${frontendUrl}/cart`,
         customer_email: await this.getUserEmail(userId),
         metadata: {
           userId,
           cartId: cart.id,
-          subtotal: subtotal.toString(),
-          processingFee: processingFee.toString(),
-          amountTotal: amountTotal.toString(),
+          subtotal: subtotal.toFixed(2),
+          processingFee: processingFee.toFixed(2),
+          amountTotal: amountTotal.toFixed(2),
         },
         payment_intent_data: {
           metadata: {
             userId,
             cartId: cart.id,
-            subtotal: subtotal.toString(),
-            processingFee: processingFee.toString(),
-            amountTotal: amountTotal.toString(),
+            subtotal: subtotal.toFixed(2),
+            processingFee: processingFee.toFixed(2),
+            amountTotal: amountTotal.toFixed(2),
           },
         },
       });
 
-      if (!session.payment_intent) {
-        this.logger.error(`No payment intent on session ${session.id}`);
-        return { url: session.url };
-      }
+      // if (!session.payment_intent) {
+      //   this.logger.error(`No payment intent on session ${session.id}`);
+      //   return { url: session.url };
+      // }
 
       await prisma.payment.create({
         data: {
           userId,
-          stripePaymentIntentId: session.payment_intent as string,
+          stripePaymentIntentId: '',
+          stripeSessionId: session.id,
           stripeClientSecret: null,
           amount: amountTotal,
           currency,
           status: PaymentStatus.PENDING,
-          expiresAt: new Date(Date.now() + 20 * 60 * 1000),
+          expiresAt: new Date(Date.now() + 30 * 60 * 1000),
         },
       });
 
       this.logger.log(
-        `Checkout session ${session.id} created for user ${userId}, amount: ${amountTotal} ${currency}`,
+        `Checkout session ${session.id} created for user ${userId}, amount: $${amountTotal} ${currency}`,
       );
 
       return { url: session.url };
