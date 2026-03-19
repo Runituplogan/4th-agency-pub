@@ -28,10 +28,35 @@ export class WebhookService {
     );
   }
 
+  // constructEvent(payload: Buffer, signature: string): Stripe.Event {
+  //   const webhookSecret = this.configService.getOrThrow(
+  //     'STRIPE_WEBHOOK_SECRET',
+  //   );
+
+  //   try {
+  //     return this.stripe.webhooks.constructEvent(
+  //       payload,
+  //       signature,
+  //       webhookSecret,
+  //     );
+  //   } catch (error) {
+  //     this.logger.error(
+  //       `Webhook signature verification failed: ${error.message}`,
+  //     );
+  //     throw new BadRequestException('Invalid webhook signature');
+  //   }
+  // }
+
   constructEvent(payload: Buffer, signature: string): Stripe.Event {
     const webhookSecret = this.configService.getOrThrow(
       'STRIPE_WEBHOOK_SECRET',
     );
+
+    // Temporary — remove after confirming
+    this.logger.log(
+      `Webhook secret loaded: ${webhookSecret?.substring(0, 10)}...`,
+    );
+    this.logger.log(`Signature received: ${signature?.substring(0, 20)}...`);
 
     try {
       return this.stripe.webhooks.constructEvent(
