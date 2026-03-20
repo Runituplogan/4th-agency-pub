@@ -196,7 +196,7 @@ model Payment {
   userId  String
   user    User    @relation(fields: [userId], references: [id])
 
-  stripePaymentIntentId String  @unique
+  stripePaymentIntentId String? @unique
   stripeChargeId        String?
   stripeCustomerId      String?
   stripeClientSecret    String?

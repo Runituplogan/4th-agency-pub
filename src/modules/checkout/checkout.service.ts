@@ -146,7 +146,7 @@ export class CheckoutService {
       await prisma.payment.create({
         data: {
           userId,
-          stripePaymentIntentId: '',
+          stripePaymentIntentId: null,
           stripeSessionId: session.id,
           stripeClientSecret: null,
           amount: amountTotal,

@@ -35,10 +35,15 @@ export class CartService {
       });
 
       if (existingItem) {
+        const contentTypeChanged =
+          addToCartDto.contentType !== existingItem.contentType;
+
         await prisma.cartItem.update({
           where: { id: existingItem.id },
           data: {
-            quantity: existingItem.quantity + (addToCartDto.quantity ?? 1),
+            quantity: contentTypeChanged
+              ? 1
+              : existingItem.quantity + (addToCartDto.quantity ?? 1),
             contentType: addToCartDto.contentType ?? existingItem.contentType,
             contentTypeFee:
               addToCartDto.contentTypeFee ?? existingItem.contentTypeFee,
