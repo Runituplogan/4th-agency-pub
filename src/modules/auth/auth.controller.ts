@@ -24,6 +24,7 @@ import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/common/guards/auth.guard';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -32,7 +33,6 @@ export class AuthController {
     private readonly configService: ConfigService,
   ) {}
 
-  @Public()
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   async registerUser(
@@ -45,7 +45,6 @@ export class AuthController {
     return null;
   }
 
-  @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async loginUser(
@@ -61,7 +60,6 @@ export class AuthController {
     return { data: { ...user, accessToken } };
   }
 
-  @Public()
   @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
   async refreshToken(
@@ -82,7 +80,6 @@ export class AuthController {
     return { data: { ...user, accessToken } };
   }
 
-  @Public()
   @Get('verify-email')
   @HttpCode(HttpStatus.OK)
   async verifyEmail(
@@ -98,7 +95,6 @@ export class AuthController {
     return { message: 'Email verified successfully. You can now log in.' };
   }
 
-  @Public()
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   async forgotPassword(
@@ -110,7 +106,25 @@ export class AuthController {
     res.locals.message = message;
   }
 
-  @Public()
+  @Post('reset-password')
+  async resetPassword(
+    @Query('token') token: string,
+    @Body() resetPasswordDto: ResetPasswordDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    if (!token) {
+      throw new BadRequestException('Reset token is required');
+    }
+
+    await this.authService.resetPassword({
+      resetToken: token,
+      newPassword: resetPasswordDto.newPassword,
+      confirmPassword: resetPasswordDto.confirmPassword,
+    });
+
+    res.locals.message = 'Password reset successful. You can now log in.';
+  }
+
   @Post('resend-verification')
   @HttpCode(HttpStatus.OK)
   async resendVerificationEmail(

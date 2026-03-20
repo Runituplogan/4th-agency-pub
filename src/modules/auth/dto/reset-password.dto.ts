@@ -16,7 +16,7 @@ import {
 class MatchPasswords implements ValidatorConstraintInterface {
   validate(value: any, args: ValidationArguments) {
     const obj = args.object as any;
-    return obj.password === obj.confirmPassword;
+    return obj.newPassword === obj.confirmPassword;
   }
 
   defaultMessage(args: ValidationArguments) {
@@ -25,10 +25,6 @@ class MatchPasswords implements ValidatorConstraintInterface {
 }
 
 export class ResetPasswordDto {
-  @IsNotEmpty({ message: 'Reset token is required' })
-  @IsString()
-  resetToken: string;
-
   @IsNotEmpty({ message: 'Password is required' })
   @MinLength(8, { message: 'Password must be at least 8 characters long' })
   @MaxLength(128, { message: 'Password must be at most 128 characters long' })
@@ -47,4 +43,10 @@ export class ResetPasswordDto {
 
   @Validate(MatchPasswords)
   matchingPasswords: string;
+}
+
+export interface ResetPasswordPayload {
+  resetToken: string;
+  newPassword: string;
+  confirmPassword: string;
 }

@@ -22,7 +22,10 @@ import {
 import { JwtPayload } from 'jsonwebtoken';
 import { UpdatePasswordDto } from './dto/update-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
-import { ResetPasswordDto } from './dto/reset-password.dto';
+import {
+  ResetPasswordDto,
+  ResetPasswordPayload,
+} from './dto/reset-password.dto';
 import { VerifyResetCodeDto } from './dto/verifiy-reset-code.dto';
 import { VerifyAccountDto } from './dto/verifiy-account.dto';
 import prisma from 'src/shared/service/client';
@@ -589,7 +592,7 @@ export class AuthService implements OnModuleInit {
   ): Promise<{ message: string }> {
     const genericResponse = {
       message:
-        'If an account with that email exists, we have sent a password reset code.',
+        'If an account with that email exists, we have sent a password reset link.',
     };
 
     try {
@@ -610,9 +613,7 @@ export class AuthService implements OnModuleInit {
         },
       });
 
-      if (!user) {
-        return genericResponse;
-      }
+      if (!user) return genericResponse;
 
       if (
         !user.verified ||
@@ -623,7 +624,7 @@ export class AuthService implements OnModuleInit {
       }
 
       const MAX_ATTEMPTS = 3;
-      const RESET_WINDOW_MS = 60 * 60 * 1000; //1 hour
+      const RESET_WINDOW_MS = 60 * 60 * 1000; // 1 hour
       const now = new Date();
 
       const windowExpired =
@@ -637,14 +638,19 @@ export class AuthService implements OnModuleInit {
         return genericResponse;
       }
 
-      const resetCode = randomInt(100000, 999999).toString();
-      const hashedResetCode = await argon2.hash(resetCode);
+      const resetToken = await this.jwtService.signAsync(
+        { sub: user.id, purpose: 'password_reset' },
+        {
+          secret: this.configService.getOrThrow('JWT_SECRET'),
+          expiresIn: '10m',
+        },
+      );
+
+      const resetLink = `${this.configService.getOrThrow('FRONTEND_URL')}/reset-password?token=${resetToken}`;
 
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          passwordResetCode: hashedResetCode,
-          passwordResetExpires: new Date(Date.now() + 10 * 60 * 1000),
           passwordResetLastSent: now,
           passwordResetAttempts: currentAttempts + 1,
           passwordResetAttemptResetAt: windowExpired
@@ -653,10 +659,37 @@ export class AuthService implements OnModuleInit {
         },
       });
 
-      //email
+      let emailTemplate: string;
+      try {
+        emailTemplate = await this.templateService.resetPasswordTemplate({
+          firstName: user.firstName,
+          resetLink,
+          year: new Date().getFullYear().toString(),
+          expiration_time: new Date(Date.now() + 10 * 60 * 1000),
+        });
+      } catch (error) {
+        this.logger.error(
+          `Failed to load reset email template: ${error.message}`,
+        );
+        throw new InternalServerErrorException(
+          'Unable to process password reset. Please try again later.',
+        );
+      }
+
+      try {
+        await this.notificationService.sendEmail({
+          to: user.email,
+          subject: 'Reset Your Password',
+          html: emailTemplate,
+        });
+      } catch (emailError) {
+        this.logger.error(
+          `password  reset email failed for user ${user.id}: ${emailError.message}`,
+        );
+      }
 
       this.logger.log(
-        `Password reset code sent to: ${user.email} (id: ${user.id})`,
+        `Password reset link sent to: ${user.email} (id: ${user.id})`,
       );
 
       return genericResponse;
@@ -665,6 +698,91 @@ export class AuthService implements OnModuleInit {
       throw new InternalServerErrorException(
         'Failed to process password reset request',
       );
+    }
+  }
+
+  async resetPassword(dto: ResetPasswordPayload): Promise<{ message: string }> {
+    try {
+      let payload: { sub: string; purpose: string };
+
+      try {
+        payload = await this.jwtService.verifyAsync(dto.resetToken, {
+          secret: this.configService.getOrThrow('JWT_SECRET'),
+        });
+      } catch {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      if (payload.purpose !== 'password_reset') {
+        throw new UnauthorizedException('Invalid reset token');
+      }
+
+      const user = await prisma.user.findUnique({
+        where: { id: payload.sub },
+        select: {
+          id: true,
+          status: true,
+          verified: true,
+          signUpMode: true,
+        },
+      });
+
+      if (!user) {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      if (
+        !user.verified ||
+        user.status !== UserStatus.ACTIVE ||
+        user.signUpMode !== SignupMode.REGULAR
+      ) {
+        throw new UnauthorizedException('Invalid or expired reset token');
+      }
+
+      const hashedPassword = await argon2.hash(dto.newPassword, {
+        type: argon2.argon2id,
+      });
+
+      await prisma.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          passwordChangedAt: new Date(),
+          refreshToken: null,
+          passwordResetLastSent: null,
+          passwordResetAttempts: 0,
+          passwordResetAttemptResetAt: null,
+        },
+      });
+
+      this.logger.log(`Password reset successful for user ${user.id}`);
+
+      return { message: 'Password reset successful. You can now log in.' };
+    } catch (error) {
+      this.logger.error(`resetPassword failed: ${error.message}`);
+
+      if (
+        error instanceof UnauthorizedException ||
+        error instanceof BadRequestException
+      ) {
+        throw error;
+      }
+
+      throw new InternalServerErrorException('Failed to reset password');
+    }
+  }
+
+  async logout(refreshToken: string) {
+    try {
+      const payload = await this.jwtService.verifyAsync(refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET,
+      });
+      await prisma.user.update({
+        where: { id: payload.sub },
+        data: { refreshToken: null },
+      });
+    } catch {
+      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 
@@ -728,167 +846,6 @@ export class AuthService implements OnModuleInit {
         throw error;
       }
       throw new InternalServerErrorException('Failed to update password');
-    }
-  }
-
-  async verifyPasswordResetCode(
-    verifyResetCodeDto: VerifyResetCodeDto,
-  ): Promise<{ resetToken: string }> {
-    try {
-      const email = verifyResetCodeDto.email.trim().toLowerCase();
-      const { code } = verifyResetCodeDto;
-
-      const user = await prisma.user.findFirst({
-        where: {
-          email: email,
-        },
-        select: {
-          id: true,
-          email: true,
-          status: true,
-          verified: true,
-          signUpMode: true,
-          passwordResetCode: true,
-          passwordResetExpires: true,
-        },
-      });
-
-      const invalidError = new BadRequestException(
-        'Invalid or expired reset code',
-      );
-
-      if (!user) throw invalidError;
-
-      if (
-        !user.verified ||
-        user.status !== UserStatus.ACTIVE ||
-        user.signUpMode !== SignupMode.REGULAR
-      ) {
-        throw invalidError;
-      }
-
-      if (!user.passwordResetCode || !user.passwordResetExpires) {
-        throw invalidError;
-      }
-
-      if (user.passwordResetExpires < new Date()) {
-        throw invalidError;
-      }
-
-      const isCodeValid = await argon2.verify(user.passwordResetCode, code);
-      if (!isCodeValid) throw invalidError;
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          passwordResetCode: null,
-          passwordResetExpires: null,
-        },
-      });
-
-      const resetToken = await this.jwtService.signAsync(
-        { sub: user.id, purpose: 'password_reset' },
-        {
-          secret: this.configService.getOrThrow('JWT_SECRET'),
-          expiresIn: '15m',
-        },
-      );
-
-      this.logger.log(`Password reset code verified for user ${user.id}`);
-
-      return { resetToken };
-    } catch (error) {
-      this.logger.error(`verifyPasswordResetCode failed: ${error.message}`);
-
-      if (error instanceof BadRequestException) throw error;
-
-      throw new InternalServerErrorException('Failed to verify reset code');
-    }
-  }
-
-  async resetPassword(dto: ResetPasswordDto): Promise<{ message: string }> {
-    try {
-      let payload: { sub: string; purpose: string };
-
-      try {
-        payload = await this.jwtService.verifyAsync(dto.resetToken, {
-          secret: this.configService.getOrThrow('JWT_SECRET'),
-        });
-      } catch {
-        throw new UnauthorizedException('Invalid or expired reset token');
-      }
-
-      if (payload.purpose !== 'password_reset') {
-        throw new UnauthorizedException('Invalid reset token');
-      }
-
-      const user = await prisma.user.findUnique({
-        where: { id: payload.sub },
-        select: {
-          id: true,
-          status: true,
-          verified: true,
-          signUpMode: true,
-        },
-      });
-
-      if (!user) {
-        throw new UnauthorizedException('Invalid or expired reset token');
-      }
-
-      if (
-        !user.verified ||
-        user.status !== UserStatus.ACTIVE ||
-        user.signUpMode !== SignupMode.REGULAR
-      ) {
-        throw new UnauthorizedException('Invalid or expired reset token');
-      }
-
-      const hashedPassword = await argon2.hash(dto.newPassword, {
-        type: argon2.argon2id,
-      });
-
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          password: hashedPassword,
-          passwordChangedAt: new Date(),
-          refreshToken: null,
-          passwordResetCode: null,
-          passwordResetExpires: null,
-          passwordResetAttempts: 0,
-          passwordResetAttemptResetAt: null,
-        },
-      });
-
-      this.logger.log(`Password reset successful for user ${user.id}`);
-
-      return { message: 'Password reset successful. You can now log in.' };
-    } catch (error) {
-      this.logger.error(`resetPassword failed: ${error.message}`);
-
-      if (
-        error instanceof UnauthorizedException ||
-        error instanceof BadRequestException
-      ) {
-        throw error;
-      }
-
-      throw new InternalServerErrorException('Failed to reset password');
-    }
-  }
-
-  async logout(refreshToken: string) {
-    try {
-      const payload = await this.jwtService.verifyAsync(refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET,
-      });
-      await prisma.user.update({
-        where: { id: payload.sub },
-        data: { refreshToken: null },
-      });
-    } catch {
-      throw new UnauthorizedException('Invalid refresh token');
     }
   }
 }

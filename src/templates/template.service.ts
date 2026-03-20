@@ -114,10 +114,7 @@ export class TemplateService {
         'support@example.com',
     };
 
-    return this.getEmailTemplate(
-      'resend-email-verification',
-      templateData,
-    );
+    return this.getEmailTemplate('resend-email-verification', templateData);
   }
 
   async orderConfirmedTemplate(data: {
@@ -151,7 +148,7 @@ export class TemplateService {
       MAX_FILE_SIZE:
         data.maxFileSize ?? this.configService.get('MAX_FILE_SIZE') ?? '',
       YEAR: data.year,
-      APP_NAME: '4E AGENCY',
+      COMPANY_NAME: '4E AGENCY',
       SUPPORT_EMAIL:
         data.supportEmail ??
         this.configService.get('SUPPORT_EMAIL') ??
@@ -159,5 +156,36 @@ export class TemplateService {
     };
 
     return this.getEmailTemplate('order-placed-success', templateData);
+  }
+
+  async resetPasswordTemplate(data: {
+    firstName: string;
+    resetLink: string;
+    year: string;
+    expiration_time: Date | null;
+    appName?: string;
+    supportEmail?: string;
+  }): Promise<string> {
+    const templateData = {
+      FIRST_NAME: data.firstName,
+      RESET_LINK: data.resetLink,
+      YEAR: data.year,
+      EXPIRATION_TIME: data.expiration_time
+        ? data.expiration_time.toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          })
+        : 'N/A',
+      APP_NAME: '4E AGENCY',
+      SUPPORT_EMAIL:
+        data.supportEmail ??
+        this.configService.get('SUPPORT_EMAIL') ??
+        'support@example.com',
+    };
+
+    return this.getEmailTemplate('password-reset', templateData);
   }
 }
