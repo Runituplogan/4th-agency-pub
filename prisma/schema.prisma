@@ -67,7 +67,7 @@ enum SignupMode {
 
 model Cart {
   id     String     @id @default(uuid())
-  userId String
+  userId String     @unique
   status CartStatus @default(ACTIVE)
   user   User       @relation(fields: [userId], references: [id])
   items  CartItem[]
