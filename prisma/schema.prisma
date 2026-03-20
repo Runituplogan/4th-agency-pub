@@ -67,14 +67,14 @@ enum SignupMode {
 
 model Cart {
   id     String     @id @default(uuid())
-  userId String     @unique
+  userId String
   status CartStatus @default(ACTIVE)
   user   User       @relation(fields: [userId], references: [id])
   items  CartItem[]
-  order  Order?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+  orders    Order[]
 
   @@index([status])
 }
@@ -125,7 +125,7 @@ enum CartStatus {
 model Order {
   id     String      @id @default(uuid())
   userId String
-  cartId String      @unique
+  cartId String
   user   User        @relation(fields: [userId], references: [id])
   cart   Cart        @relation(fields: [cartId], references: [id])
   status OrderStatus @default(PENDING)

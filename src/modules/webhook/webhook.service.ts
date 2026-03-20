@@ -52,7 +52,6 @@ export class WebhookService {
       'STRIPE_WEBHOOK_SECRET',
     );
 
-    // Temporary — remove after confirming
     this.logger.log(
       `Webhook secret loaded: ${webhookSecret?.substring(0, 10)}...`,
     );
@@ -193,9 +192,10 @@ export class WebhookService {
             stripeEvent: event as any,
           },
         });
+        await tx.cartItem.deleteMany({ where: { cartId } });
         await tx.cart.update({
           where: { id: cartId },
-          data: { status: CartStatus.CHECKED_OUT },
+          data: { status: CartStatus.ACTIVE },
         });
       });
     } catch (txError) {
