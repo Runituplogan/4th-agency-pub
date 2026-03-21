@@ -54,8 +54,6 @@ export class AuthController {
     const { user, accessToken, refreshToken } =
       await this.authService.loginUser(loginUser);
 
-    this.setRefreshTokenCookie(res, refreshToken);
-
     res.locals.message = 'User logged in successfully';
     return { data: { ...user, accessToken, refreshToken } };
   }
@@ -76,9 +74,6 @@ export class AuthController {
     const { accessToken, refreshToken, user } =
       await this.authService.refreshToken(oldRefreshToken);
 
-    this.setRefreshTokenCookie(res, refreshToken);
-
-    //return refreshToken in body too — for cross-origin clients
     return { data: { ...user, accessToken, refreshToken } };
   }
 
@@ -160,29 +155,10 @@ export class AuthController {
     if (!refreshToken) {
       throw new UnauthorizedException('No refresh token found');
     }
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
 
     const result = await this.authService.logout(refreshToken);
-    res.clearCookie('refreshToken', {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'strict' : 'lax',
-      path: '/',
-    });
     res.locals.message = 'Successfully logged out';
 
     return result;
-  }
-
-  private setRefreshTokenCookie(res: Response, refreshToken: string): void {
-    const isProduction = this.configService.get('NODE_ENV') === 'production';
-
-    res.cookie('refreshToken', refreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? 'none' : 'lax',
-      path: '/',
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
   }
 }
