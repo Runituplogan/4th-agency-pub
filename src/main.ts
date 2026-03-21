@@ -20,7 +20,7 @@ async function bootstrap() {
 
   app.use('/webhook/stripe', raw({ type: 'application/json' }));
   app.enableCors({
-    origin: ['http://localhost:3000', 'https://4e-fe.vercel.app/'],
+    origin: ['http://localhost:3000', 'https://4e-fe.vercel.app'],
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization', 'credentials'],
