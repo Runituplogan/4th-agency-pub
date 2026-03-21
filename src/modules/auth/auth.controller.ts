@@ -174,10 +174,11 @@ export class AuthController {
 
   private setRefreshTokenCookie(res: Response, refreshToken: string): void {
     const isProduction = this.configService.get('NODE_ENV') === 'production';
+
     res.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: isProduction, // false locally, true in production
-      sameSite: isProduction ? 'none' : 'lax', // lax locally, none in production
+      secure: isProduction,
+      sameSite: isProduction ? 'none' : 'lax',
       path: '/',
       maxAge: 7 * 24 * 60 * 60 * 1000,
     });
