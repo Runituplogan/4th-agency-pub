@@ -43,14 +43,16 @@ export class OrderService {
       this.logger.log(`Fetched ${orders.length} orders for user ${userId}`);
 
       return {
-        data: orders.map(this.mapOrderToResponse),
-        meta: {
-          total,
-          page,
-          limit,
-          totalPages: Math.ceil(total / limit),
-          hasNextPage: page < Math.ceil(total / limit),
-          hasPreviousPage: page > 1,
+        data: {
+          data: orders.map(this.mapOrderToResponse),
+          meta: {
+            total,
+            page,
+            limit,
+            totalPages: Math.ceil(total / limit),
+            hasNextPage: page < Math.ceil(total / limit),
+            hasPreviousPage: page > 1,
+          },
         },
       };
     } catch (error) {

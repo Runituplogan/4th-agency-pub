@@ -57,6 +57,8 @@ export class PaginationMetaDto {
 }
 
 export class PaginatedOrdersResponseDto {
-  data: OrderResponseDto[];
-  meta: PaginationMetaDto;
+  data: {
+    data: OrderResponseDto[];
+    meta: PaginationMetaDto;
+  };
 }
