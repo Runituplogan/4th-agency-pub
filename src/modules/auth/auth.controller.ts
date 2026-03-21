@@ -57,16 +57,17 @@ export class AuthController {
     this.setRefreshTokenCookie(res, refreshToken);
 
     res.locals.message = 'User logged in successfully';
-    return { data: { ...user, accessToken } };
+    return { data: { ...user, accessToken, refreshToken } };
   }
 
   @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
   async refreshToken(
     @Req() req: Request,
+    @Body() body: { refreshToken?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
-    const oldRefreshToken = req.cookies?.refreshToken;
+    const oldRefreshToken = req.cookies?.refreshToken ?? body?.refreshToken;
 
     if (!oldRefreshToken) {
       throw new UnauthorizedException('No refresh token found');
@@ -77,7 +78,8 @@ export class AuthController {
 
     this.setRefreshTokenCookie(res, refreshToken);
 
-    return { data: { ...user, accessToken } };
+    //return refreshToken in body too — for cross-origin clients
+    return { data: { ...user, accessToken, refreshToken } };
   }
 
   @Get('verify-email')
