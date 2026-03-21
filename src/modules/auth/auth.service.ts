@@ -165,7 +165,7 @@ export class AuthService implements OnModuleInit {
         where: { email: loginUserDto.email.toLowerCase().trim() },
       });
 
-      const invalidCredentialsError = new UnauthorizedException(
+      const invalidCredentialsError = new BadRequestException(
         'Incorrect email or password',
       );
 
