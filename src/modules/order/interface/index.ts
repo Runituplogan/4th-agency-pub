@@ -17,6 +17,8 @@ export class OrderItemResponseDto {
   currency: string;
   quantity: number;
   lineTotal: number;
+  contentType: string | null;
+  contentTypeFee: number;
 }
 
 export class OrderPaymentResponseDto {

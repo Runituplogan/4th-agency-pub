@@ -161,6 +161,8 @@ export class OrderService {
         pricingTier: item.pricingTier,
         currency: item.currency,
         quantity: item.quantity,
+        contentType: item.contentType,
+        contentTypeFee: item.contentTypeFee,
         lineTotal: parseFloat((item.unitAmount * item.quantity).toFixed(2)),
       })),
       //only include payments if they were fetched
