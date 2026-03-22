@@ -60,19 +60,13 @@ export class AuthController {
 
   @Post('refresh-token')
   @HttpCode(HttpStatus.OK)
-  async refreshToken(
-    @Req() req: Request,
-    @Body() body: { refreshToken?: string },
-    @Res({ passthrough: true }) res: Response,
-  ) {
-    const oldRefreshToken = req.cookies?.refreshToken ?? body?.refreshToken;
-
-    if (!oldRefreshToken) {
+  async refreshToken(@Body() body: { refreshToken?: string }) {
+    if (!body?.refreshToken) {
       throw new UnauthorizedException('No refresh token found');
     }
 
     const { accessToken, refreshToken, user } =
-      await this.authService.refreshToken(oldRefreshToken);
+      await this.authService.refreshToken(body.refreshToken);
 
     return { data: { ...user, accessToken, refreshToken } };
   }
