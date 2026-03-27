@@ -12,12 +12,15 @@ import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
 import { AllHttpExceptionFilter } from './common/filters/http-exception.filter';
 import { ResponseInterceptor } from './common/interceptors/response.interceptor';
+import helmet from 'helmet';
+import { ThrottlerExceptionFilter } from './common/filters/throttler-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     rawBody: true,
   });
 
+  app.use(helmet());
   app.use('/webhook/stripe', raw({ type: 'application/json' }));
   app.enableCors({
     origin: ['http://localhost:3000', 'https://4e-fe.vercel.app'],
@@ -37,7 +40,10 @@ async function bootstrap() {
       transform: true,
     }),
   );
-  app.useGlobalFilters(new AllHttpExceptionFilter());
+  app.useGlobalFilters(
+    new AllHttpExceptionFilter(),
+    new ThrottlerExceptionFilter(),
+  );
   app.useGlobalInterceptors(new ResponseInterceptor());
   await app.listen(process.env.PORT ?? 3000);
 }

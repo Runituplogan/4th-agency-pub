@@ -10,6 +10,10 @@ import { CartModule } from './modules/cart/cart.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { OrderModule } from './modules/order/order.module';
 import { WebhookModule } from './modules/webhook/webhook.module';
+import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { APP_GUARD } from '@nestjs/core';
+import { HealthModule } from './modules/health/health.module';
+import { CustomThrottlerGuard } from './common/guards/throttler.guard';
 
 @Module({
   imports: [
@@ -17,14 +21,33 @@ import { WebhookModule } from './modules/webhook/webhook.module';
       isGlobal: true,
       load: [sendgridConfig],
     }),
+    ThrottlerModule.forRoot([
+      {
+        name: 'short',
+        ttl: 1000,
+        limit: 10,
+      },
+      {
+        name: 'long',
+        ttl: 60000,
+        limit: 100,
+      },
+    ]),
     SharedModule,
     AuthModule,
     CartModule,
     CheckoutModule,
     OrderModule,
     WebhookModule,
+    HealthModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    {
+      provide: APP_GUARD,
+      useClass: CustomThrottlerGuard,
+    },
+  ],
 })
 export class AppModule {}

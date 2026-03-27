@@ -25,6 +25,7 @@ import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from 'src/common/guards/auth.guard';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { Throttle, SkipThrottle } from '@nestjs/throttler';
 
 @Controller('auth')
 export class AuthController {
@@ -34,6 +35,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
   @HttpCode(HttpStatus.CREATED)
   async registerUser(
     @Body() registerUser: RegisterUserDto,
@@ -46,6 +48,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @Throttle({ short: { ttl: 60000, limit: 5 } })
   @HttpCode(HttpStatus.OK)
   async loginUser(
     @Body() loginUser: LoginUserDto,
@@ -87,6 +90,7 @@ export class AuthController {
   }
 
   @Post('forgot-password')
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
   @HttpCode(HttpStatus.OK)
   async forgotPassword(
     @Body() forgotPasswordDto: ForgotPasswordDto,
@@ -98,6 +102,7 @@ export class AuthController {
   }
 
   @Post('reset-password')
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
   async resetPassword(
     @Query('token') token: string,
     @Body() resetPasswordDto: ResetPasswordDto,
@@ -117,6 +122,7 @@ export class AuthController {
   }
 
   @Post('resend-verification')
+  @Throttle({ short: { ttl: 60000, limit: 3 } })
   @HttpCode(HttpStatus.OK)
   async resendVerificationEmail(
     @Body('email') email: string,

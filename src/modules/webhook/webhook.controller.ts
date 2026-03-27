@@ -11,7 +11,9 @@ import { WebhookService } from './webhook.service';
 import { BadRequestException } from 'src/common/exceptions';
 import type { Request, Response } from 'express';
 import { Public } from 'src/common/decorators/public.decorator';
+import { SkipThrottle } from '@nestjs/throttler';
 
+@SkipThrottle()
 @Public()
 @Controller('webhook')
 export class WebhookController {
