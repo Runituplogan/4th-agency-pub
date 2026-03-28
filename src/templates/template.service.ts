@@ -140,7 +140,7 @@ export class TemplateService {
       COMPANY_WEBSITE:
         data.companyWebsite ?? this.configService.get('COMPANY_WEBSITE') ?? '',
       UPLOAD_LINK:
-        data.uploadLink ?? this.configService.get('ACCEPTED_FORMATS') ?? '',
+        data.uploadLink ?? this.configService.get('UPLOAD_LINK') ?? '',
       ACCEPTED_FORMATS:
         data.acceptedFormats ??
         this.configService.get('ACCEPTED_FORMATS') ??
