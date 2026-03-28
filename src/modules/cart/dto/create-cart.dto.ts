@@ -9,17 +9,17 @@ import {
 } from 'class-validator';
 
 export class AddToCartDto {
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  placementId: string;
+  placementId?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  name: string;
+  name?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  websiteUrl: string;
+  websiteUrl?: string;
 
   @IsOptional()
   @IsString()
@@ -37,9 +37,9 @@ export class AddToCartDto {
   @IsString()
   channelType?: string;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  placementType: string;
+  placementType?: string;
 
   @IsOptional()
   @IsInt()
@@ -63,11 +63,11 @@ export class AddToCartDto {
 
   @IsNotEmpty()
   @IsInt()
-  unitAmount: number;
+  unitAmount?: number;
 
-  @IsNotEmpty()
+  @IsOptional()
   @IsString()
-  pricingTier: string;
+  pricingTier?: string;
 
   @IsOptional()
   @IsString()
@@ -80,7 +80,7 @@ export class AddToCartDto {
 
   @IsOptional()
   @IsString()
-  contentType?: string; 
+  contentType?: string;
 
   @IsOptional()
   @IsNumber()

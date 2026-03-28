@@ -229,8 +229,12 @@ export class CartService {
 
     const mappedItems: CartItemResponseDto[] = cart.items.map((item) => ({
       ...item,
+      placementId: item.placementId ?? undefined,
       lineTotal: parseFloat(
-        ((item.unitAmount + item.contentTypeFee) * item.quantity).toFixed(2),
+        (
+          ((item.unitAmount ?? 0) + item.contentTypeFee) *
+          item.quantity
+        ).toFixed(2),
       ),
     }));
 

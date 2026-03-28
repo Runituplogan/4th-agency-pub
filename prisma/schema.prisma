@@ -84,16 +84,16 @@ model CartItem {
   cartId String
   cart   Cart   @relation(fields: [cartId], references: [id], onDelete: Cascade)
 
-  placementId String
+  placementId String?
 
-  name       String
-  websiteUrl String
+  name       String?
+  websiteUrl String?
   logoUrl    String?
   country    String?
   outletName String?
 
   channelType     String?
-  placementType   String
+  placementType   String?
   domainAuthority Int?
   domainRanking   Int?
   isDoFollow      Boolean @default(false)
@@ -101,10 +101,10 @@ model CartItem {
   minDeliveryDays Int?
   maxDeliveryDays Int?
 
-  unitAmount  Float
-  pricingTier String
-  currency    String @default("usd")
-  quantity    Int    @default(1)
+  unitAmount  Float?
+  pricingTier String?
+  currency    String  @default("usd")
+  quantity    Int     @default(1)
 
   contentType    String?
   contentTypeFee Float   @default(0)
