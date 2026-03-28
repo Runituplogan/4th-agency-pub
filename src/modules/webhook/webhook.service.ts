@@ -154,24 +154,24 @@ export class WebhookService {
             paidAt: new Date(),
             items: {
               create: cart.items.map((item) => ({
-                placementId: item.placementId,
-                name: item.name,
-                websiteUrl: item.websiteUrl,
-                logoUrl: item.logoUrl,
-                country: item.country,
-                outletName: item.outletName,
-                channelType: item.channelType,
-                placementType: item.placementType,
-                domainAuthority: item.domainAuthority,
-                domainRanking: item.domainRanking,
+                placementId: item.placementId ?? undefined,
+                name: item.name ?? undefined,
+                websiteUrl: item.websiteUrl ?? undefined,
+                logoUrl: item.logoUrl ?? undefined,
+                country: item.country ?? undefined,
+                outletName: item.outletName ?? undefined,
+                channelType: item.channelType ?? undefined,
+                placementType: item.placementType ?? undefined,
+                domainAuthority: item.domainAuthority ?? undefined,
+                domainRanking: item.domainRanking ?? undefined,
                 isDoFollow: item.isDoFollow,
-                minDeliveryDays: item.minDeliveryDays,
-                maxDeliveryDays: item.maxDeliveryDays,
-                unitAmount: item.unitAmount,
-                pricingTier: item.pricingTier,
+                minDeliveryDays: item.minDeliveryDays ?? undefined,
+                maxDeliveryDays: item.maxDeliveryDays ?? undefined,
+                unitAmount: item.unitAmount ?? 0,
+                pricingTier: item.pricingTier ?? undefined,
                 currency: item.currency,
                 quantity: item.quantity,
-                contentType: item.contentType,
+                contentType: item.contentType ?? undefined,
                 contentTypeFee: item.contentTypeFee,
               })),
             },
@@ -226,8 +226,8 @@ export class WebhookService {
                 ${item.websiteUrl}
               </p>
               <p style="margin:0;font-size:13px;color:#374151;">
-               Qty: ${item.quantity} × ${item.currency.toUpperCase()} ${item.unitAmount.toFixed(2)}
-= <strong>${item.currency.toUpperCase()} ${(item.quantity * item.unitAmount).toFixed(2)}</strong>
+              Qty: ${item.quantity} × ${item.currency.toUpperCase()} ${(item.unitAmount ?? 0).toFixed(2)}
+= <strong>${item.currency.toUpperCase()} ${(item.quantity * (item.unitAmount ?? 0)).toFixed(2)}</strong>
               </p>
             </td>
           </tr>

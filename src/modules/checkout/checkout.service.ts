@@ -45,11 +45,11 @@ export class CheckoutService {
       }
 
       const frontendUrl = this.configService.getOrThrow('FRONTEND_URL');
-      const currency = cart.items[0].currency.toLowerCase();
+      const currency = (cart.items[0].currency ?? 'usd').toLowerCase();
 
       const subtotal = cart.items.reduce(
         (sum, item) =>
-          sum + (item.unitAmount + item.contentTypeFee) * item.quantity,
+          sum + ((item.unitAmount ?? 0) + item.contentTypeFee) * item.quantity,
         0,
       );
       const processingFee = parseFloat(
@@ -63,19 +63,19 @@ export class CheckoutService {
             price_data: {
               currency,
               product_data: {
-                name: item.name,
+                name: item.name ?? 'Placement', 
                 description:
-                  `${item.websiteUrl} • ${item.country ?? ''}`.trim(),
+                  `${item.websiteUrl ?? ''} • ${item.country ?? ''}`.trim(),
                 images: item.logoUrl ? [item.logoUrl] : [],
                 metadata: {
-                  placementId: item.placementId,
+                  placementId: item.placementId ?? '', 
                   channelType: item.channelType ?? '',
-                  placementType: item.placementType,
+                  placementType: item.placementType ?? '', 
                   domainAuthority: item.domainAuthority?.toString() ?? '',
                   isDoFollow: item.isDoFollow.toString(),
                 },
               },
-              unit_amount: Math.round(item.unitAmount * 100),
+              unit_amount: Math.round((item.unitAmount ?? 0) * 100), 
             },
             quantity: item.quantity,
           },
@@ -85,7 +85,7 @@ export class CheckoutService {
                   price_data: {
                     currency,
                     product_data: {
-                      name: `${item.name} — ${
+                      name: `${item.name ?? 'Placement'} — ${
                         item.contentType === 'personal'
                           ? 'Personal Profile'
                           : item.contentType === 'marketing'

@@ -156,21 +156,21 @@ model OrderItem {
   orderId String
   order   Order  @relation(fields: [orderId], references: [id])
 
-  placementId     String
-  name            String
-  websiteUrl      String
+  placementId     String?
+  name            String?
+  websiteUrl      String?
   logoUrl         String?
   country         String?
   outletName      String?
   channelType     String?
-  placementType   String
+  placementType   String?
   domainAuthority Int?
   domainRanking   Int?
   isDoFollow      Boolean @default(false)
   minDeliveryDays Int?
   maxDeliveryDays Int?
-  unitAmount      Int
-  pricingTier     String
+  unitAmount      Float?
+  pricingTier     String?
   currency        String  @default("usd")
   quantity        Int
 
